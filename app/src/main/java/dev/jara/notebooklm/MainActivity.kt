@@ -10,12 +10,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModelProvider
 import dev.jara.notebooklm.auth.LoginActivity
-import dev.jara.notebooklm.ui.MainViewModel
-import dev.jara.notebooklm.ui.TerminalScreen
+import dev.jara.notebooklm.ui.*
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var viewModel: MainViewModel
+    private lateinit var viewModel: AppViewModel
 
     private val loginLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -36,22 +35,37 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        viewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        viewModel = ViewModelProvider(this)[AppViewModel::class.java]
 
         setContent {
-            val lines by viewModel.lines.collectAsState()
+            val screen by viewModel.screen.collectAsState()
+            val notebooks by viewModel.notebooks.collectAsState()
+            val loading by viewModel.notebooksLoading.collectAsState()
+            val detail by viewModel.detail.collectAsState()
+            val error by viewModel.error.collectAsState()
 
-            TerminalScreen(
-                lines = lines,
-                onCommand = { cmd ->
-                    if (cmd.trim().lowercase() == "login") {
-                        viewModel.handleCommand(cmd)
+            when (val s = screen) {
+                is Screen.Login -> LoginScreen(
+                    onLogin = {
                         loginLauncher.launch(Intent(this, LoginActivity::class.java))
-                    } else {
-                        viewModel.handleCommand(cmd)
-                    }
-                },
-            )
+                    },
+                    error = error,
+                )
+
+                is Screen.NotebookList -> NotebookListScreen(
+                    notebooks = notebooks,
+                    loading = loading,
+                    onNotebookClick = { viewModel.openNotebook(it) },
+                    onRefresh = { viewModel.loadNotebooks() },
+                    onLogout = { viewModel.logout() },
+                )
+
+                is Screen.NotebookDetail -> NotebookDetailScreen(
+                    notebook = s.notebook,
+                    detail = detail,
+                    onBack = { viewModel.goBack() },
+                )
+            }
         }
     }
 }
