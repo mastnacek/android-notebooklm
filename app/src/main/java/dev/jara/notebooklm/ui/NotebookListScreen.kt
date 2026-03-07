@@ -5,12 +5,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.jara.notebooklm.rpc.NotebookLmApi
@@ -66,6 +69,70 @@ fun NotebookListScreen(
             )
         }
 
+        // Search
+        var query by remember { mutableStateOf("") }
+        val filtered = remember(notebooks, query) {
+            if (query.isBlank()) notebooks
+            else {
+                val q = query.lowercase()
+                notebooks.filter { nb ->
+                    nb.title.lowercase().contains(q) ||
+                    nb.emoji.lowercase().contains(q)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Term.surfaceLight)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "/ ",
+                color = Term.green,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it },
+                textStyle = TextStyle(
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                ),
+                cursorBrush = SolidColor(Term.green),
+                singleLine = true,
+                decorationBox = { inner ->
+                    Box {
+                        if (query.isEmpty()) {
+                            Text(
+                                text = "hledat sesity...",
+                                color = Term.textDim,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSize,
+                            )
+                        }
+                        inner()
+                    }
+                },
+                modifier = Modifier.weight(1f),
+            )
+            if (query.isNotEmpty()) {
+                Text(
+                    text = "[x]",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    modifier = Modifier
+                        .clickable { query = "" }
+                        .padding(start = 8.dp),
+                )
+            }
+        }
+
         // Stav
         if (loading) {
             Box(
@@ -93,8 +160,13 @@ fun NotebookListScreen(
             }
         } else {
             // Pocet
+            val countText = if (query.isNotBlank()) {
+                "  ${filtered.size}/${notebooks.size} sesitu"
+            } else {
+                "  ${notebooks.size} sesitu"
+            }
             Text(
-                text = "  ${notebooks.size} sesitu",
+                text = countText,
                 color = Term.textDim,
                 fontFamily = Term.font,
                 fontSize = Term.fontSize,
@@ -106,7 +178,7 @@ fun NotebookListScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                itemsIndexed(notebooks) { _, nb ->
+                itemsIndexed(filtered) { _, nb ->
                     NotebookItem(nb) { onNotebookClick(nb) }
                 }
             }
