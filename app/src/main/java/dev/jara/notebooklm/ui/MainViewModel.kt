@@ -26,6 +26,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _isLoggedIn = MutableStateFlow(authManager.isLoggedIn())
     val isLoggedIn: StateFlow<Boolean> get() = _isLoggedIn
 
+    private var lastNotebooks = listOf<NotebookLmApi.Notebook>()
+
     init {
         appendLine(TermLine.Text("NotebookLM Terminal v0.1.0-alpha"))
         appendLine(TermLine.Text("batchexecute RPC client for Android"))
@@ -44,13 +46,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val trimmed = cmd.trim().lowercase()
         appendLine(TermLine.Input("> $cmd"))
 
-        when (trimmed) {
-            "login" -> appendLine(TermLine.Info("Otviram WebView pro prihlaseni..."))
-            "logout" -> doLogout()
-            "refresh" -> doRefreshTokens()
-            "list" -> doListNotebooks()
-            "clear" -> doClear()
-            "help" -> doHelp()
+        when {
+            trimmed == "login" -> appendLine(TermLine.Info("Otviram WebView pro prihlaseni..."))
+            trimmed == "logout" -> doLogout()
+            trimmed == "refresh" -> doRefreshTokens()
+            trimmed == "list" -> doListNotebooks()
+            trimmed == "clear" -> doClear()
+            trimmed == "help" -> doHelp()
+            trimmed.startsWith("open ") -> doOpenNotebook(trimmed.removePrefix("open ").trim())
             else -> appendLine(TermLine.Error("Neznamy prikaz: $trimmed"))
         }
     }
@@ -126,6 +129,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val notebooks = api.listNotebooks()
                 Log.i(TAG, "doListNotebooks: got ${notebooks.size} notebooks")
 
+                lastNotebooks = notebooks
                 if (notebooks.isEmpty()) {
                     appendLine(TermLine.Warn("Zadne sesity nenalezeny."))
                 } else {
@@ -146,17 +150,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun doOpenNotebook(arg: String) {
+        val tokens = authManager.loadTokens()
+        if (tokens == null) {
+            appendLine(TermLine.Error("Nejsi prihlasen. Pouzij 'login'."))
+            return
+        }
+        val idx = arg.toIntOrNull()
+        if (idx == null || idx < 1 || idx > lastNotebooks.size) {
+            appendLine(TermLine.Error("Neplatne cislo. Pouzij 'list' a pak 'open <cislo>'."))
+            return
+        }
+        val nb = lastNotebooks[idx - 1]
+        val prefix = if (nb.emoji.isNotEmpty()) "${nb.emoji} " else ""
+        appendLine(TermLine.Info("Otviram: $prefix${nb.title}"))
+
+        viewModelScope.launch {
+            try {
+                val api = NotebookLmApi(httpClient, tokens)
+
+                val sources = api.getSources(nb.id)
+                val summary = api.getSummary(nb.id)
+
+                appendLine(TermLine.Blank)
+                appendLine(TermLine.Ok("=== $prefix${nb.title} ==="))
+                appendLine(TermLine.Blank)
+
+                // Summary
+                if (!summary.isNullOrBlank()) {
+                    appendLine(TermLine.Info("Souhrn:"))
+                    for (l in summary.split("\n")) {
+                        appendLine(TermLine.Text("  $l"))
+                    }
+                    appendLine(TermLine.Blank)
+                }
+
+                // Sources
+                if (sources.isEmpty()) {
+                    appendLine(TermLine.Warn("Zadne zdroje."))
+                } else {
+                    appendLine(TermLine.Info("Zdroje (${sources.size}):"))
+                    for ((i, src) in sources.withIndex()) {
+                        val num = "${i + 1}".padStart(2)
+                        appendLine(TermLine.Text("  $num. ${src.type.icon} ${src.title}"))
+                    }
+                }
+                appendLine(TermLine.Blank)
+                appendLine(TermLine.Info("Prikaz: [list] [help]"))
+            } catch (e: Exception) {
+                Log.e(TAG, "doOpenNotebook: ${e.message}", e)
+                appendLine(TermLine.Error("Chyba: ${e.message}"))
+            }
+        }
+    }
+
     private fun doClear() {
         _lines.value = mutableListOf()
     }
 
     private fun doHelp() {
-        appendLine(TermLine.Text("  login    - Prihlaseni pres Google"))
-        appendLine(TermLine.Text("  list     - Seznam sesitu"))
-        appendLine(TermLine.Text("  refresh  - Obnovit tokeny"))
-        appendLine(TermLine.Text("  logout   - Odhlaseni"))
-        appendLine(TermLine.Text("  clear    - Vycistit terminal"))
-        appendLine(TermLine.Text("  help     - Tato napoveda"))
+        appendLine(TermLine.Text("  login      - Prihlaseni pres Google"))
+        appendLine(TermLine.Text("  list       - Seznam sesitu"))
+        appendLine(TermLine.Text("  open <n>   - Detail sesitu (zdroje + souhrn)"))
+        appendLine(TermLine.Text("  refresh    - Obnovit tokeny"))
+        appendLine(TermLine.Text("  logout     - Odhlaseni"))
+        appendLine(TermLine.Text("  clear      - Vycistit terminal"))
+        appendLine(TermLine.Text("  help       - Tato napoveda"))
     }
 
     private fun appendLine(line: TermLine) {

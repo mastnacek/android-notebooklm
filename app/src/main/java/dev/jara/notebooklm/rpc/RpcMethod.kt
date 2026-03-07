@@ -13,4 +13,6 @@ enum class RpcMethod(val id: String) {
     ADD_SOURCE("izAoDd"),
     DELETE_SOURCE("tGMBJ"),
     GET_SOURCE("hizoJc"),
+    SUMMARIZE("VfAZjd"),
+    LIST_ARTIFACTS("gArtLc"),
 }
