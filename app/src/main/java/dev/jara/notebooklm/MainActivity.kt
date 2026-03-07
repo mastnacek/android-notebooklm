@@ -6,8 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModelProvider
 import dev.jara.notebooklm.auth.LoginActivity
 import dev.jara.notebooklm.ui.*
@@ -43,6 +42,18 @@ class MainActivity : ComponentActivity() {
             val loading by viewModel.notebooksLoading.collectAsState()
             val detail by viewModel.detail.collectAsState()
             val error by viewModel.error.collectAsState()
+            val semanticResults by viewModel.semanticResults.collectAsState()
+            val searchLoading by viewModel.searchLoading.collectAsState()
+            val embeddingStatus by viewModel.embeddingStatus.collectAsState()
+            var showSettings by remember { mutableStateOf(false) }
+
+            if (showSettings) {
+                SettingsDialog(
+                    currentApiKey = viewModel.getApiKey(),
+                    onSave = { viewModel.setApiKey(it) },
+                    onDismiss = { showSettings = false },
+                )
+            }
 
             when (val s = screen) {
                 is Screen.Login -> LoginScreen(
@@ -55,9 +66,17 @@ class MainActivity : ComponentActivity() {
                 is Screen.NotebookList -> NotebookListScreen(
                     notebooks = notebooks,
                     loading = loading,
+                    semanticResults = semanticResults,
+                    searchLoading = searchLoading,
+                    embeddingStatus = embeddingStatus,
+                    hasApiKey = viewModel.hasApiKey(),
                     onNotebookClick = { viewModel.openNotebook(it) },
                     onRefresh = { viewModel.loadNotebooks() },
                     onLogout = { viewModel.logout() },
+                    onSemanticSearch = { viewModel.semanticSearch(it) },
+                    onClearSemantic = { viewModel.clearSemanticResults() },
+                    onEmbedNotebooks = { viewModel.embedNotebooks() },
+                    onSettings = { showSettings = true },
                 )
 
                 is Screen.NotebookDetail -> NotebookDetailScreen(

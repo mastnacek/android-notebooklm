@@ -1,16 +1,21 @@
 package dev.jara.notebooklm.ui
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jara.notebooklm.auth.AuthManager
 import dev.jara.notebooklm.rpc.NotebookLmApi
+import dev.jara.notebooklm.search.EmbeddingDb
+import dev.jara.notebooklm.search.OpenRouterEmbedding
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Navigacni stav aplikace */
 sealed class Screen {
@@ -33,6 +38,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val authManager = AuthManager(app)
     private val httpClient = HttpClient(CIO)
+    private val embeddingDb = EmbeddingDb(app)
+    private val prefs = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    private val _semanticResults = MutableStateFlow<List<String>?>(null)
+    val semanticResults: StateFlow<List<String>?> get() = _semanticResults
+
+    private val _searchLoading = MutableStateFlow(false)
+    val searchLoading: StateFlow<Boolean> get() = _searchLoading
+
+    private val _embeddingStatus = MutableStateFlow<String?>(null)
+    val embeddingStatus: StateFlow<String?> get() = _embeddingStatus
 
     private val _screen = MutableStateFlow<Screen>(
         if (authManager.isLoggedIn()) Screen.NotebookList else Screen.Login
@@ -130,8 +146,106 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun needsLogin(): Boolean = _screen.value is Screen.Login
 
+    // ── OpenRouter API key ──
+
+    fun getApiKey(): String = prefs.getString("openrouter_api_key", "") ?: ""
+
+    fun setApiKey(key: String) {
+        prefs.edit().putString("openrouter_api_key", key).apply()
+    }
+
+    fun hasApiKey(): Boolean = getApiKey().isNotBlank()
+
+    // ── Semantic search ──
+
+    /** Embeddne vsechny notebooky (background, incrementalne) */
+    fun embedNotebooks() {
+        val apiKey = getApiKey()
+        if (apiKey.isBlank()) {
+            _error.value = "Nastav OpenRouter API klic v nastaveni"
+            return
+        }
+        val nbs = _notebooks.value
+        if (nbs.isEmpty()) return
+
+        _embeddingStatus.value = "Embedduji ${nbs.size} sesitu..."
+        viewModelScope.launch {
+            try {
+                val embedding = OpenRouterEmbedding(httpClient, apiKey)
+                withContext(Dispatchers.IO) {
+                    // Zjisti ktere potrebuji update
+                    val toEmbed = nbs.filter { nb ->
+                        val text = nb.title
+                        embeddingDb.needsUpdate(nb.id, text)
+                    }
+
+                    if (toEmbed.isEmpty()) {
+                        _embeddingStatus.value = null
+                        return@withContext
+                    }
+
+                    _embeddingStatus.value = "Embedduji ${toEmbed.size} novych..."
+
+                    // Batch po 20
+                    for (chunk in toEmbed.chunked(20)) {
+                        val texts = chunk.map { it.title }
+                        val embeddings = embedding.embed(texts)
+                        for ((i, nb) in chunk.withIndex()) {
+                            embeddingDb.upsertEmbedding(nb.id, nb.title, "", embeddings[i])
+                        }
+                    }
+
+                    // Prune smazane
+                    embeddingDb.pruneDeleted(nbs.map { it.id }.toSet())
+                }
+                _embeddingStatus.value = null
+                Log.i(TAG, "embedNotebooks: done")
+            } catch (e: Exception) {
+                Log.e(TAG, "embedNotebooks", e)
+                _embeddingStatus.value = null
+                _error.value = "Embedding chyba: ${e.message}"
+            }
+        }
+    }
+
+    /** Semanticke vyhledavani — embeddne query a KNN */
+    fun semanticSearch(query: String) {
+        val apiKey = getApiKey()
+        if (apiKey.isBlank()) {
+            _error.value = "Nastav OpenRouter API klic"
+            return
+        }
+        if (query.isBlank()) {
+            _semanticResults.value = null
+            return
+        }
+
+        _searchLoading.value = true
+        viewModelScope.launch {
+            try {
+                val embedding = OpenRouterEmbedding(httpClient, apiKey)
+                val queryEmb = embedding.embedSingle(query)
+                val results = withContext(Dispatchers.IO) {
+                    embeddingDb.search(queryEmb, limit = 20)
+                }
+                _semanticResults.value = results.map { it.first }
+                Log.i(TAG, "semanticSearch: ${results.size} vysledku")
+            } catch (e: Exception) {
+                Log.e(TAG, "semanticSearch", e)
+                _error.value = "Search chyba: ${e.message}"
+            } finally {
+                _searchLoading.value = false
+            }
+        }
+    }
+
+    fun clearSemanticResults() {
+        _semanticResults.value = null
+    }
+
     override fun onCleared() {
         httpClient.close()
+        embeddingDb.close()
         super.onCleared()
     }
 }
