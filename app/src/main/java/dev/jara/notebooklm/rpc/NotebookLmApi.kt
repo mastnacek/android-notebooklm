@@ -248,6 +248,15 @@ class NotebookLmApi(
         rpcCall(RpcMethod.DELETE_SOURCE, params, sourcePath = "/notebook/$notebookId")
     }
 
+    /** Rust: api::delete_artifact — RPC V5N4be */
+    suspend fun deleteArtifact(artifactId: String) {
+        val params = buildJsonArray {
+            add(buildJsonArray { add(JsonPrimitive(2)) })
+            add(JsonPrimitive(artifactId))
+        }
+        rpcCall(RpcMethod.DELETE_ARTIFACT, params, sourcePath = "/")
+    }
+
     /** Rust: api::get_source_fulltext — RPC hizoJc
      * Vraci textovy obsah zdroje pro hash porovnani pri deduplikaci */
     suspend fun getSourceFulltext(notebookId: String, sourceId: String): String {

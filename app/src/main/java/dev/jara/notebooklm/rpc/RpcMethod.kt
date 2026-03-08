@@ -19,6 +19,7 @@ enum class RpcMethod(val id: String) {
     UPDATE_NOTE("cYAfTb"),
     DELETE_NOTE("AH0mwd"),
     GET_NOTES("cFji9"),
+    DELETE_ARTIFACT("V5N4be"),
     GENERATE_ARTIFACT("R7cb6c"),
     GET_INTERACTIVE_HTML("v9rmvd"),
     GET_CONVERSATION_TURNS("khqZz"),

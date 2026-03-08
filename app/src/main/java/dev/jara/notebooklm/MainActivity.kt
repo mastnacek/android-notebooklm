@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             val sortMode by viewModel.notebookSort.collectAsState()
             var showSettings by remember { mutableStateOf(false) }
             val dedupState by viewModel.dedup.collectAsState()
+            val detailDedupState by viewModel.detailDedup.collectAsState()
             val classifyState by viewModel.classify.collectAsState()
             val categories by viewModel.categories.collectAsState()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
@@ -167,8 +168,13 @@ class MainActivity : ComponentActivity() {
                         onDownloadAudio = { art -> viewModel.downloadArtifact(art) },
                         onAddSource = { type, value, title -> viewModel.addSource(type, value, title) },
                         onDeleteSource = { viewModel.deleteSource(it) },
+                        onDeleteSources = { viewModel.deleteSources(it) },
+                        onDedupSources = { viewModel.dedupCurrentNotebook() },
+                        onDismissDedup = { viewModel.dismissDetailDedup() },
+                        dedup = detailDedupState,
                         onGenerateArtifact = { type, opts -> viewModel.generateArtifact(type, opts) },
                         onOpenInteractiveHtml = { viewModel.openInteractiveHtml(it) },
+                        onDeleteArtifact = { viewModel.deleteArtifact(it) },
                         onDeleteNote = { viewModel.deleteNote(it) },
                     )
                 }

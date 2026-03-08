@@ -8,7 +8,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,7 +36,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 import dev.jara.notebooklm.rpc.NotebookLmApi
 
 @Composable
@@ -49,8 +56,13 @@ fun NotebookDetailScreen(
     onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
     onAddSource: (type: String, value: String, title: String) -> Unit,
     onDeleteSource: (String) -> Unit,
+    onDeleteSources: (Set<String>) -> Unit,
+    onDedupSources: () -> Unit,
+    onDismissDedup: () -> Unit,
+    dedup: DeduplicationState,
     onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onDeleteArtifact: (String) -> Unit,
     onDeleteNote: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -126,12 +138,13 @@ fun NotebookDetailScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 DetailTab.SOURCES -> SourcesTab(
-                    detail, onAddSource, onDeleteSource,
+                    detail, onAddSource, onDeleteSource, onDeleteSources,
+                    onDedupSources, onDismissDedup, dedup,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 DetailTab.ARTIFACTS -> ArtifactsTab(
                     detail, onPlayAudio, onDownloadAudio, onGenerateArtifact,
-                    onOpenInteractiveHtml, detail.downloads,
+                    onOpenInteractiveHtml, onDeleteArtifact, detail.downloads,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 DetailTab.NOTES -> NotesTab(
@@ -413,15 +426,25 @@ private fun ChatBubble(
 // SOURCES TAB
 // ══════════════════════════════════════════════════════════════════════════════
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SourcesTab(
     detail: DetailState,
     onAddSource: (type: String, value: String, title: String) -> Unit,
     onDeleteSource: (String) -> Unit,
+    onDeleteSources: (Set<String>) -> Unit,
+    onDedupSources: () -> Unit,
+    onDismissDedup: () -> Unit,
+    dedup: DeduplicationState,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val selectionMode = selectedIds.isNotEmpty()
+    var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     if (showAddDialog) {
         AddSourceDialog(
@@ -430,10 +453,113 @@ private fun SourcesTab(
         )
     }
 
+    // Dedup progress dialog
+    if (dedup.running || dedup.done || dedup.error != null) {
+        Dialog(
+            onDismissRequest = { if (!dedup.running) onDismissDedup() },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Term.surface)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "Deduplikace zdrojů",
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (dedup.running) {
+                    CircularProgressIndicator(
+                        color = Term.orange,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Hledám duplikáty…",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                    if (dedup.totalDeleted > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Smazáno: ${dedup.totalDeleted}",
+                            color = Term.orange,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        )
+                    }
+                } else if (dedup.error != null) {
+                    Text("⚠", fontSize = 32.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = dedup.error,
+                        color = Term.red,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                } else if (dedup.done) {
+                    Text(
+                        text = if (dedup.totalDeleted > 0) "✓" else "👍",
+                        fontSize = 32.sp,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (dedup.totalDeleted > 0)
+                            "Smazáno ${dedup.totalDeleted} duplikátů"
+                        else
+                            "Žádné duplikáty nenalezeny",
+                        color = if (dedup.totalDeleted > 0) Term.green else Term.text,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                }
+
+                if (!dedup.running) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DetailPill("Zavřít", Term.textDim) { onDismissDedup() }
+                }
+            }
+        }
+    }
+
+    if (deleteConfirmIds.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { deleteConfirmIds = emptySet() },
+            confirmButton = {
+                DetailPill("Smazat ${deleteConfirmIds.size}", Term.red) {
+                    onDeleteSources(deleteConfirmIds)
+                    selectedIds = selectedIds - deleteConfirmIds
+                    deleteConfirmIds = emptySet()
+                }
+            },
+            dismissButton = {
+                DetailPill("Zrušit", Term.textDim) { deleteConfirmIds = emptySet() }
+            },
+            title = {
+                Text("Smazat ${deleteConfirmIds.size} zdrojů?", color = Term.white, fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            },
+            containerColor = Term.surface,
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
+
     Box(modifier = modifier) {
+    Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 56.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (detail.sources.isEmpty()) {
@@ -464,58 +590,162 @@ private fun SourcesTab(
                 }
             } else {
                 items(detail.sources, key = { it.id }) { src ->
-                    SwipeToDismissSourceCard(src, onDeleteSource)
+                    val selected = src.id in selectedIds
+                    if (selectionMode) {
+                        SelectableSourceCard(
+                            src = src,
+                            selected = selected,
+                            onClick = { selectedIds = selectedIds.toggle(src.id) },
+                        )
+                    } else {
+                        SwipeToDismissSourceCard(
+                            src = src,
+                            onDeleteSource = onDeleteSource,
+                            onLongClick = { selectedIds = selectedIds + src.id },
+                            haptic = haptic,
+                            scope = scope,
+                            snackbarHostState = snackbarHostState,
+                        )
+                    }
                 }
             }
         }
 
-        // Plovoucí tlačítko — vždy viditelné dole
-        DetailPill("＋ Zdroj", Term.green, onClick = { showAddDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp),
+        // Selection bar nebo action bar
+        if (selectionMode) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Term.surfaceLight)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "${selectedIds.size}×",
+                    color = Term.green,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                DetailPill("🗑 ${selectedIds.size}", Term.red) {
+                    deleteConfirmIds = selectedIds
+                }
+                DetailPill("✕", Term.textDim) { selectedIds = emptySet() }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Term.surface)
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetailPill("＋ Zdroj", Term.green) { showAddDialog = true }
+                Spacer(modifier = Modifier.weight(1f))
+                if (detail.sources.size >= 2) {
+                    DetailPill("Deduplikace", Term.orange) { onDedupSources() }
+                }
+            }
+        }
+    } // Column
+
+    // Snackbar overlay
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp),
+    ) { data ->
+        Snackbar(
+            snackbarData = data,
+            containerColor = Term.surface,
+            contentColor = Term.text,
+            actionColor = Term.orange,
+            shape = RoundedCornerShape(12.dp),
+        )
+    }
+    } // Box
+}
+
+private fun <T> Set<T>.toggle(item: T): Set<T> =
+    if (item in this) this - item else this + item
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SelectableSourceCard(
+    src: NotebookLmApi.Source,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val borderColor = if (selected) Term.green else Color.Transparent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (selected) Term.green.copy(alpha = 0.1f) else Term.surface)
+            .border(1.5.dp, borderColor, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (selected) "✓" else src.type.icon,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(end = 12.dp),
+        )
+        Text(
+            text = src.title,
+            color = if (selected) Term.green else Term.text,
+            fontFamily = Term.font,
+            fontSize = Term.fontSize,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeToDismissSourceCard(
     src: NotebookLmApi.Source,
     onDeleteSource: (String) -> Unit,
+    onLongClick: () -> Unit = {},
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback = LocalHapticFeedback.current,
+    scope: kotlinx.coroutines.CoroutineScope = rememberCoroutineScope(),
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
-    var confirmDelete by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                confirmDelete = true
-                false // nepotvrdi swipe — cekame na dialog
-            } else false
-        }
+        confirmValueChange = { false },
     )
 
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            confirmButton = {
-                DetailPill("Smazat", Term.red) {
-                    onDeleteSource(src.id)
-                    confirmDelete = false
+    LaunchedEffect(Unit) {
+        var triggered = false
+        var maxDragProgress = 0f
+        snapshotFlow { dismissState.progress to dismissState.dismissDirection }
+            .collect { (progress, direction) ->
+                if (progress > maxDragProgress && progress < 1.0f) {
+                    maxDragProgress = progress
                 }
-            },
-            dismissButton = {
-                DetailPill("Zrušit", Term.textDim) { confirmDelete = false }
-            },
-            title = {
-                Text("Smazat zdroj?", color = Term.white, fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Text(src.title, color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize)
-            },
-            containerColor = Term.surface,
-            shape = RoundedCornerShape(16.dp),
-        )
+                if (maxDragProgress >= 0.4f && !triggered && direction == SwipeToDismissBoxValue.EndToStart) {
+                    triggered = true
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Smazat: ${src.title.take(25)}",
+                            actionLabel = "Zpět",
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result != SnackbarResult.ActionPerformed) {
+                            onDeleteSource(src.id)
+                        }
+                    }
+                }
+                if (progress < 0.05f) {
+                    triggered = false
+                    maxDragProgress = 0f
+                }
+            }
     }
 
     SwipeToDismissBox(
@@ -543,18 +773,26 @@ private fun SwipeToDismissSourceCard(
         },
         enableDismissFromStartToEnd = false,
     ) {
-        SourceCard(src)
+        SourceCard(src, onLongClick = onLongClick)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SourceCard(src: NotebookLmApi.Source) {
+private fun SourceCard(
+    src: NotebookLmApi.Source,
+    onLongClick: () -> Unit = {},
+) {
     val shape = RoundedCornerShape(14.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(Term.surface)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -588,71 +826,90 @@ private fun AddSourceDialog(
     var value by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        confirmButton = {
-            DetailPill("Přidat", Term.green) {
-                if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
-            }
-        },
-        dismissButton = {
-            DetailPill("Zrušit", Term.textDim) { onDismiss() }
-        },
-        title = {
-            Text("Přidat zdroj", color = Term.white, fontFamily = Term.font,
-                fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column {
-                // Typ
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for ((type, icon) in listOf("url" to "🌐", "youtube" to "🎥", "text" to "📝")) {
-                        val selected = selectedType == type
-                        val shape = RoundedCornerShape(10.dp)
-                        Text(
-                            text = icon,
-                            fontSize = 20.sp,
-                            modifier = Modifier
-                                .clip(shape)
-                                .then(
-                                    if (selected) Modifier
-                                        .background(Term.green.copy(alpha = 0.15f))
-                                        .border(1.dp, Term.green.copy(alpha = 0.4f), shape)
-                                    else Modifier.background(Term.bg)
-                                )
-                                .clickable { selectedType = type }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Term.surface)
+                .padding(24.dp),
+        ) {
+            Text(
+                text = "Přidat zdroj",
+                color = Term.white,
+                fontFamily = Term.font,
+                fontSize = Term.fontSizeXl,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(18.dp))
 
-                if (selectedType == "text") {
-                    DetailInput(
-                        value = title,
-                        onValueChange = { title = it },
-                        placeholder = "Název...",
-                        singleLine = true,
+            // Typ
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((type, label) in listOf("url" to "🌐 Web", "youtube" to "🎥 YT", "text" to "📝 Text")) {
+                    val selected = selectedType == type
+                    val shape = RoundedCornerShape(12.dp)
+                    Text(
+                        text = label,
+                        color = if (selected) Term.green else Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clip(shape)
+                            .then(
+                                if (selected) Modifier
+                                    .background(Term.green.copy(alpha = 0.15f))
+                                    .border(1.5.dp, Term.green.copy(alpha = 0.5f), shape)
+                                else Modifier.background(Term.bg)
+                            )
+                            .clickable { selectedType = type }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
-
-                DetailInput(
-                    value = value,
-                    onValueChange = { value = it },
-                    placeholder = when (selectedType) {
-                        "url" -> "https://..."
-                        "youtube" -> "https://youtube.com/..."
-                        else -> "Obsah textu..."
-                    },
-                    singleLine = selectedType != "text",
-                    maxLines = if (selectedType == "text") 6 else 1,
-                )
             }
-        },
-        containerColor = Term.surface,
-        shape = RoundedCornerShape(20.dp),
-    )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (selectedType == "text") {
+                DetailInput(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = "Název...",
+                    singleLine = true,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            DetailInput(
+                value = value,
+                onValueChange = { value = it },
+                placeholder = when (selectedType) {
+                    "url" -> "https://..."
+                    "youtube" -> "https://youtube.com/..."
+                    else -> "Obsah textu..."
+                },
+                singleLine = selectedType != "text",
+                maxLines = if (selectedType == "text") 6 else 1,
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetailPill("Zrušit", Term.textDim) { onDismiss() }
+                Spacer(modifier = Modifier.width(10.dp))
+                DetailPill("Přidat", Term.green) {
+                    if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
+                }
+            }
+        }
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -666,60 +923,94 @@ private fun ArtifactsTab(
     onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
     onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onDeleteArtifact: (String) -> Unit,
     downloads: Map<String, DownloadState>,
     modifier: Modifier = Modifier,
 ) {
     var showGenerate by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (showGenerate) {
-            item {
-                GenerateArtifactPanel(onGenerateArtifact) { showGenerate = false }
-            }
-        }
+    Box(modifier = modifier) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (detail.artifacts.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = "\uD83C\uDFA8", fontSize = 48.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Zatím žádné artefakty",
+                                color = Term.white,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSizeLg,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Vygeneruj audio, report nebo prezentaci",
+                                color = Term.textDim,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSize,
+                            )
+                        }
+                    }
+                }
 
-        if (detail.artifacts.isEmpty() && !showGenerate) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = "\uD83C\uDFA8", fontSize = 48.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Zatím žádné artefakty",
-                        color = Term.white,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSizeLg,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Vygeneruj audio, report nebo prezentaci",
-                        color = Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
+                items(detail.artifacts, key = { it.id }) { art ->
+                    SwipeToDismissArtifactCard(
+                        art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml,
+                        onDeleteArtifact, downloads[art.id],
+                        haptic, scope, snackbarHostState,
                     )
                 }
             }
-        }
 
-        items(detail.artifacts) { art ->
-            ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, downloads[art.id])
-        }
+            // Generovací panel — dole nad bottom barem (thumb area)
+            if (showGenerate) {
+                GenerateArtifactPanel(onGenerateArtifact) { showGenerate = false }
+            }
 
-        // Generovat — dole v thumb area
-        item {
-            Spacer(modifier = Modifier.height(4.dp))
-            DetailPill("＋ Generovat", Term.purple) { showGenerate = !showGenerate }
+            // Bottom bar s tlačítkem Generovat
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Term.surface)
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DetailPill(
+                if (showGenerate) "✕ Zavřít" else "＋ Generovat",
+                if (showGenerate) Term.textDim else Term.purple,
+            ) { showGenerate = !showGenerate }
         }
-    }
+        } // Column
+
+        // Snackbar overlay
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp),
+        ) { data ->
+            Snackbar(
+                snackbarData = data,
+                containerColor = Term.surface,
+                contentColor = Term.text,
+                actionColor = Term.orange,
+                shape = RoundedCornerShape(12.dp),
+            )
+        }
+    } // Box
 }
 
 @Composable
@@ -929,6 +1220,81 @@ private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDismissArtifactCard(
+    art: NotebookLmApi.Artifact,
+    onPlayAudio: (String, String) -> Unit,
+    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onOpenInteractiveHtml: (String) -> Unit,
+    onDeleteArtifact: (String) -> Unit,
+    downloadState: DownloadState?,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { false },
+    )
+
+    LaunchedEffect(Unit) {
+        var triggered = false
+        var maxDragProgress = 0f
+        snapshotFlow { dismissState.progress to dismissState.dismissDirection }
+            .collect { (progress, direction) ->
+                if (progress > maxDragProgress && progress < 1.0f) {
+                    maxDragProgress = progress
+                }
+                if (maxDragProgress >= 0.4f && !triggered && direction == SwipeToDismissBoxValue.EndToStart) {
+                    triggered = true
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Smazat: ${art.title.take(25)}",
+                            actionLabel = "Zpět",
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result != SnackbarResult.ActionPerformed) {
+                            onDeleteArtifact(art.id)
+                        }
+                    }
+                }
+                if (progress < 0.05f) {
+                    triggered = false
+                    maxDragProgress = 0f
+                }
+            }
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) Term.red
+                else Term.red.copy(alpha = 0.3f),
+                label = "swipeBg",
+            )
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1.1f else 0.8f,
+                label = "swipeScale",
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+            }
+        },
+        enableDismissFromStartToEnd = false,
+    ) {
+        ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, downloadState)
+    }
+}
+
 @Composable
 private fun ArtifactCard(
     art: NotebookLmApi.Artifact,
@@ -944,6 +1310,7 @@ private fun ArtifactCard(
         NotebookLmApi.ArtifactStatus.PENDING -> Term.cyan
         NotebookLmApi.ArtifactStatus.FAILED -> Term.red
     }
+    val isDownloading = downloadState != null && !downloadState.done && downloadState.error == null
 
     Column(
         modifier = Modifier
@@ -953,7 +1320,7 @@ private fun ArtifactCard(
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = art.type.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+            Text(text = art.type.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = art.title,
@@ -961,72 +1328,61 @@ private fun ArtifactCard(
                     fontFamily = Term.font,
                     fontSize = Term.fontSize,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = art.type.label,
-                        color = Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = 11.sp,
-                    )
-                    Text(
-                        text = "• ${art.status.label}",
-                        color = statusColor,
-                        fontFamily = Term.font,
-                        fontSize = 11.sp,
-                    )
-                }
+                Text(
+                    text = "${art.type.label} • ${art.status.label}",
+                    color = statusColor,
+                    fontFamily = Term.font,
+                    fontSize = 11.sp,
+                )
             }
-        }
 
-        // Akce — kompaktni ikonky
-        if (art.url != null && art.status == NotebookLmApi.ArtifactStatus.COMPLETED) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (art.type == NotebookLmApi.ArtifactType.AUDIO || art.type == NotebookLmApi.ArtifactType.VIDEO) {
-                    DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
-                }
-                if (art.type == NotebookLmApi.ArtifactType.QUIZ) {
-                    DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
-                }
+            // Akce — kompaktní, na stejném řádku vpravo
+            if (art.url != null && art.status == NotebookLmApi.ArtifactStatus.COMPLETED) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (art.type == NotebookLmApi.ArtifactType.AUDIO || art.type == NotebookLmApi.ArtifactType.VIDEO) {
+                        DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
+                    }
+                    if (art.type == NotebookLmApi.ArtifactType.QUIZ) {
+                        DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
+                    }
 
-                val isDownloading = downloadState != null && !downloadState.done && downloadState.error == null
-                if (!isDownloading) {
-                    if (downloadState?.done == true) {
-                        // Stazeno — zelena fajfka
-                        DetailPill("✓", Term.green) {}
-                        // Otevrit v externi app
-                        val context = LocalContext.current
-                        IconPill(Icons.Default.OpenInNew, Term.orange) {
-                            if (downloadState.filePath != null) {
-                                val uri = android.net.Uri.parse(downloadState.filePath)
-                                val mime = when (art.type) {
-                                    NotebookLmApi.ArtifactType.AUDIO -> "audio/*"
-                                    NotebookLmApi.ArtifactType.VIDEO -> "video/*"
-                                    NotebookLmApi.ArtifactType.SLIDE_DECK -> "application/pdf"
-                                    NotebookLmApi.ArtifactType.INFOGRAPHIC -> "image/*"
-                                    else -> "*/*"
+                    if (!isDownloading) {
+                        if (downloadState?.done == true) {
+                            DetailPill("✓", Term.green) {}
+                            val context = LocalContext.current
+                            DetailPill("↗", Term.orange) {
+                                if (downloadState.filePath != null) {
+                                    val uri = android.net.Uri.parse(downloadState.filePath)
+                                    val mime = when (art.type) {
+                                        NotebookLmApi.ArtifactType.AUDIO -> "audio/*"
+                                        NotebookLmApi.ArtifactType.VIDEO -> "video/*"
+                                        NotebookLmApi.ArtifactType.SLIDE_DECK -> "application/pdf"
+                                        NotebookLmApi.ArtifactType.INFOGRAPHIC -> "image/*"
+                                        else -> "*/*"
+                                    }
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, mime)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(intent)
                                 }
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, mime)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(intent)
                             }
+                        } else {
+                            DetailPill("⬇", Term.cyan) { onDownloadAudio(art) }
                         }
-                    } else {
-                        DetailPill("⬇", Term.cyan) { onDownloadAudio(art) }
                     }
                 }
             }
         }
 
         // Download progress
-        if (downloadState != null && !downloadState.done && downloadState.error == null) {
+        if (isDownloading) {
             Spacer(modifier = Modifier.height(8.dp))
-            val progressText = if (downloadState.progress < 0) "Stahuji..."
+            val progressText = if (downloadState!!.progress < 0) "Stahuji..."
                 else "${(downloadState.progress * 100).toInt()}%"
-            Text(text = progressText, color = Term.orange, fontFamily = Term.font, fontSize = Term.fontSize)
+            Text(text = progressText, color = Term.orange, fontFamily = Term.font, fontSize = 11.sp)
             Spacer(modifier = Modifier.height(4.dp))
             if (downloadState.progress >= 0) {
                 LinearProgressIndicator(
@@ -1239,17 +1595,23 @@ private fun DetailPill(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(10.dp)
+    val isSingleChar = text.codePointCount(0, text.length) == 1
     Text(
         text = text,
         color = color,
         fontFamily = Term.font,
         fontSize = Term.fontSize,
         fontWeight = FontWeight.SemiBold,
+        textAlign = if (isSingleChar) androidx.compose.ui.text.style.TextAlign.Center else null,
         modifier = modifier
             .clip(shape)
             .border(1.dp, color.copy(alpha = 0.3f), shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .then(
+                if (isSingleChar) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 34.dp)
+                    .padding(horizontal = 7.dp, vertical = 7.dp)
+                else Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+            ),
     )
 }
 

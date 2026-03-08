@@ -20,9 +20,14 @@ Portováno z Rust TUI implementace: `/home/jara/dev/tui/src/notebooklm/`
 ## Referenční implementace
 - **Rust port**: `/home/jara/dev/tui/src/notebooklm/` — kompletní implementace (api.rs, auth.rs, notebooks.rs, chat.rs, models.rs, render.rs)
 - Při nejasnostech ohledně RPC formátu vždy konzultuj Rust kód a puvodni pythnon knihovnu `/home/jara/dev/android-notebooklm/references/notebooklm-py/`
+## UX knowledge base
+- **NotebookLM sešit pro UI/UX konzultace**: `https://notebooklm.google.com/notebook/1f8074f9-975c-4961-8a07-dd077a5bd285`
+- Při UI rozhodnutích (swipe směr, barvy, layout, interakce) **vždy konzultuj přes notebooklm skill** — neptej se sám sebe, zeptej se sešitu!
+
 ## Instrukce pro AI
 - Pro Kotlin dokumentaci a best practices použij **knowledge_base** skill (kb)
 - Pro aktuální dokumentaci knihoven (Compose, Ktor, kotlinx.serialization) použij **context7** MCP server
+- Pro UI/UX rozhodnutí použij **notebooklm** skill s výše uvedeným sešitem
 - Komunikace v češtině, kód v angličtině
 - Před změnou vždy přečti existující kód
 - Commit po každé dokončené změně
