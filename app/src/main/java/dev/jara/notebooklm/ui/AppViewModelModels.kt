@@ -82,3 +82,12 @@ data class DetailState(
     val audioPlayer: AudioPlayerState? = null,
     val downloads: Map<String, DownloadState> = emptyMap(),
 )
+
+/** PMEST facety pro notebook */
+data class NotebookFacets(
+    val topic: String = "",
+    val format: String = "",
+    val purpose: String = "",
+    val domain: String = "",
+    val freshness: String = "",
+)

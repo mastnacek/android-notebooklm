@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
+import dev.jara.notebooklm.ui.NotebookFacets
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -14,7 +15,7 @@ import java.nio.ByteOrder
  * ale KNN se pocita v Kotlinu (cosine similarity).
  */
 class EmbeddingDb(context: Context) : SQLiteOpenHelper(
-    context, "notebooklm_embeddings.db", null, 1
+    context, "notebooklm_embeddings.db", null, 2
 ) {
     companion object {
         private const val TAG = "EmbeddingDb"
@@ -31,11 +32,27 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        createFacetsTable(db)
+    }
+
+    private fun createFacetsTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS notebook_facets (
+                notebook_id TEXT PRIMARY KEY,
+                topic TEXT NOT NULL DEFAULT '',
+                format TEXT NOT NULL DEFAULT '',
+                purpose TEXT NOT NULL DEFAULT '',
+                domain TEXT NOT NULL DEFAULT '',
+                freshness TEXT NOT NULL DEFAULT ''
+            )
+        """)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
-        db.execSQL("DROP TABLE IF EXISTS notebook_embeddings")
-        onCreate(db)
+        // Migrace — zachovej existujici data, jen pridej nove tabulky
+        if (old < 2) {
+            createFacetsTable(db)
+        }
     }
 
     /** Ulozi embedding pro notebook. Prepise pokud existuje. */
@@ -105,6 +122,70 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
             "DELETE FROM notebook_embeddings WHERE notebook_id NOT IN ($placeholders)",
             currentIds.toTypedArray()
         )
+    }
+
+    /** Ulozi nebo aktualizuje PMEST facety pro notebook */
+    fun upsertFacets(notebookId: String, facets: NotebookFacets) {
+        val cv = ContentValues().apply {
+            put("notebook_id", notebookId)
+            put("topic", facets.topic)
+            put("format", facets.format)
+            put("purpose", facets.purpose)
+            put("domain", facets.domain)
+            put("freshness", facets.freshness)
+        }
+        writableDatabase.insertWithOnConflict("notebook_facets", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Vraci facety pro konkretni notebook, nebo null pokud neexistuji */
+    fun getFacets(notebookId: String): NotebookFacets? {
+        val cursor = readableDatabase.rawQuery(
+            "SELECT topic, format, purpose, domain, freshness FROM notebook_facets WHERE notebook_id = ?",
+            arrayOf(notebookId)
+        )
+        val result = if (cursor.moveToFirst()) {
+            NotebookFacets(
+                topic = cursor.getString(0),
+                format = cursor.getString(1),
+                purpose = cursor.getString(2),
+                domain = cursor.getString(3),
+                freshness = cursor.getString(4),
+            )
+        } else null
+        cursor.close()
+        return result
+    }
+
+    /** Vraci facety vsech notebooku jako mapu notebookId -> facety */
+    fun getAllFacets(): Map<String, NotebookFacets> {
+        val result = mutableMapOf<String, NotebookFacets>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT notebook_id, topic, format, purpose, domain, freshness FROM notebook_facets", null
+        )
+        while (cursor.moveToNext()) {
+            result[cursor.getString(0)] = NotebookFacets(
+                topic = cursor.getString(1),
+                format = cursor.getString(2),
+                purpose = cursor.getString(3),
+                domain = cursor.getString(4),
+                freshness = cursor.getString(5),
+            )
+        }
+        cursor.close()
+        return result
+    }
+
+    /** Vraci unikatni neprazdne hodnoty daneho facetu (pro filtrovani) */
+    fun getDistinctFacetValues(column: String): List<String> {
+        val allowed = setOf("topic", "format", "purpose", "domain", "freshness")
+        if (column !in allowed) return emptyList()
+        val result = mutableListOf<String>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT DISTINCT $column FROM notebook_facets WHERE $column != '' ORDER BY $column", null
+        )
+        while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
+        cursor.close()
+        return result
     }
 
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
