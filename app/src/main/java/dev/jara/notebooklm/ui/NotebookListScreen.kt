@@ -1,5 +1,6 @@
 package dev.jara.notebooklm.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,12 +18,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,8 +76,12 @@ fun NotebookListScreen(
     onDeleteNotebook: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(Term.bg)
             .windowInsetsPadding(WindowInsets.statusBars)
@@ -312,14 +324,39 @@ fun NotebookListScreen(
                             item(key = nb.id) {
                                 @OptIn(ExperimentalMaterial3Api::class)
                                 val dismissState = rememberSwipeToDismissBoxState(
+                                    positionalThreshold = { it * 0.4f },
                                     confirmValueChange = { value ->
                                         when (value) {
                                             SwipeToDismissBoxValue.EndToStart -> {
-                                                if (hasApiKey) onClassifySelected(setOf(nb.id))
+                                                if (hasApiKey) {
+                                                    val nbId = nb.id
+                                                    scope.launch {
+                                                        val result = snackbarHostState.showSnackbar(
+                                                            message = "AI klasifikace: ${nb.title.take(20)}",
+                                                            actionLabel = "Zpět",
+                                                            duration = SnackbarDuration.Short,
+                                                        )
+                                                        if (result != SnackbarResult.ActionPerformed) {
+                                                            onClassifySelected(setOf(nbId))
+                                                        }
+                                                    }
+                                                }
                                                 false
                                             }
                                             SwipeToDismissBoxValue.StartToEnd -> {
-                                                if (hasApiKey) onEmbedNotebooks(setOf(nb.id))
+                                                if (hasApiKey) {
+                                                    val nbId = nb.id
+                                                    scope.launch {
+                                                        val result = snackbarHostState.showSnackbar(
+                                                            message = "Embed: ${nb.title.take(20)}",
+                                                            actionLabel = "Zpět",
+                                                            duration = SnackbarDuration.Short,
+                                                        )
+                                                        if (result != SnackbarResult.ActionPerformed) {
+                                                            onEmbedNotebooks(setOf(nbId))
+                                                        }
+                                                    }
+                                                }
                                                 false
                                             }
                                             SwipeToDismissBoxValue.Settled -> false
@@ -390,14 +427,39 @@ fun NotebookListScreen(
                     itemsIndexed(displayList) { _, nb ->
                         @OptIn(ExperimentalMaterial3Api::class)
                         val dismissState = rememberSwipeToDismissBoxState(
+                            positionalThreshold = { it * 0.4f },
                             confirmValueChange = { value ->
                                 when (value) {
                                     SwipeToDismissBoxValue.EndToStart -> {
-                                        if (hasApiKey) onClassifySelected(setOf(nb.id))
+                                        if (hasApiKey) {
+                                            val nbId = nb.id
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "AI klasifikace: ${nb.title.take(20)}",
+                                                    actionLabel = "Zpět",
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                                if (result != SnackbarResult.ActionPerformed) {
+                                                    onClassifySelected(setOf(nbId))
+                                                }
+                                            }
+                                        }
                                         false
                                     }
                                     SwipeToDismissBoxValue.StartToEnd -> {
-                                        if (hasApiKey) onEmbedNotebooks(setOf(nb.id))
+                                        if (hasApiKey) {
+                                            val nbId = nb.id
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "Embed: ${nb.title.take(20)}",
+                                                    actionLabel = "Zpět",
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                                if (result != SnackbarResult.ActionPerformed) {
+                                                    onEmbedNotebooks(setOf(nbId))
+                                                }
+                                            }
+                                        }
                                         false
                                     }
                                     SwipeToDismissBoxValue.Settled -> false
@@ -483,30 +545,70 @@ fun NotebookListScreen(
             )
         }
 
-        // ── Search bar (thumb zone) ──
+        // ── Search mode toggle (thumb zone) ──
+        val modeColor by animateColorAsState(
+            targetValue = if (semanticMode) Term.purple else Term.green,
+            animationSpec = tween(250),
+            label = "mode_color",
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Term.bg)
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // Segmented control — fulltext / AI
+            val ftShape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
+            Text(
+                text = "🔍 Text",
+                color = if (!semanticMode) Term.green else Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 12.sp,
+                fontWeight = if (!semanticMode) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier
+                    .clip(ftShape)
+                    .then(
+                        if (!semanticMode) Modifier
+                            .background(Term.green.copy(alpha = 0.15f))
+                            .border(1.dp, Term.green.copy(alpha = 0.3f), ftShape)
+                        else Modifier.background(Term.surfaceLight)
+                    )
+                    .clickable { if (semanticMode) { semanticMode = false; onClearSemantic() } }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            val aiShape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)
+            Text(
+                text = "🧠 AI",
+                color = if (semanticMode) Term.purple else Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 12.sp,
+                fontWeight = if (semanticMode) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier
+                    .clip(aiShape)
+                    .then(
+                        if (semanticMode) Modifier
+                            .background(Term.purple.copy(alpha = 0.15f))
+                            .border(1.dp, Term.purple.copy(alpha = 0.3f), aiShape)
+                        else Modifier.background(Term.surfaceLight)
+                    )
+                    .clickable { if (!semanticMode) semanticMode = true }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+
+        // ── Search input (thumb zone) ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Term.bg)
+                .padding(horizontal = 16.dp, vertical = 4.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Term.surfaceLight)
+                .background(if (semanticMode) Term.purple.copy(alpha = 0.08f) else Term.surfaceLight)
+                .border(1.dp, modeColor.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Mode indicator
-            Text(
-                text = if (semanticMode) "🔮" else "🔍",
-                fontSize = 16.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        semanticMode = !semanticMode
-                        if (!semanticMode) onClearSemantic()
-                    }
-                    .padding(4.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
             BasicTextField(
                 value = query,
                 onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
@@ -551,16 +653,18 @@ fun NotebookListScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
-            // Sort
+            // Sort pill
             Text(
-                text = "↕",
+                text = "↕ ${sortMode.label}",
                 color = Term.orange,
-                fontSize = 16.sp,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Term.orange.copy(alpha = 0.12f))
                     .clickable { onCycleSort() }
-                    .padding(4.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
 
@@ -575,6 +679,21 @@ fun NotebookListScreen(
             onLogout = onLogout,
         )
     }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 140.dp),
+    ) { data ->
+        Snackbar(
+            snackbarData = data,
+            containerColor = Term.surface,
+            contentColor = Term.text,
+            actionColor = Term.orange,
+            shape = RoundedCornerShape(12.dp),
+        )
+    }
+    } // Box
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
