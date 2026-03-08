@@ -197,101 +197,32 @@ fun NotebookListScreen(
             fulltextFiltered
         }
 
-        // ── Unified search bar ──
+        // ── Count + mode info ──
+        val countText = when {
+            semanticMode && semanticResults != null -> "${displayList.size} výsledků (semantic)"
+            query.isNotBlank() && !semanticMode -> "${displayList.size}/${notebooks.size} sešitů"
+            else -> "${notebooks.size} sešitů"
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Term.surfaceLight)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 20.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Mode indicator — kliknutím přepíná fulltext/semantic
             Text(
-                text = if (semanticMode) "\uD83D\uDD2E" else "\uD83D\uDD0D",
-                fontSize = 16.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        semanticMode = !semanticMode
-                        if (!semanticMode) onClearSemantic()
-                    }
-                    .padding(4.dp),
+                text = countText,
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
             )
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Search input
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
-                textStyle = TextStyle(
-                    color = Term.white,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                ),
-                cursorBrush = SolidColor(if (semanticMode) Term.purple else Term.green),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(
-                    onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
-                    onDone = {},
-                ),
-                decorationBox = { inner ->
-                    Box {
-                        if (query.isEmpty()) {
-                            Text(
-                                text = if (semanticMode) "sémantické hledání..." else "hledat sešity...",
-                                color = Term.textDim,
-                                fontFamily = Term.font,
-                                fontSize = Term.fontSize,
-                            )
-                        }
-                        inner()
-                    }
-                },
-                modifier = Modifier.weight(1f),
-            )
-
-            // Clear button
-            if (query.isNotEmpty()) {
-                Text(
-                    text = "✕",
-                    color = Term.textDim,
-                    fontSize = Term.fontSize,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { query = ""; onClearSemantic() }
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-
-            // Sort — kompaktní, jen ikona
+            Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = "↕",
-                color = Term.orange,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onCycleSort() }
-                    .padding(4.dp),
+                text = if (semanticMode) "semantic" else "fulltext",
+                color = if (semanticMode) Term.purple else Term.green,
+                fontFamily = Term.font,
+                fontSize = 11.sp,
             )
         }
-
-        // Mode label
-        Text(
-            text = if (semanticMode) "semantic" else "fulltext",
-            color = if (semanticMode) Term.purple else Term.green,
-            fontFamily = Term.font,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(horizontal = 28.dp),
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         // ── Status bary ──
         if (embeddingStatus != null) {
@@ -321,23 +252,6 @@ fun NotebookListScreen(
             )
         } else if (classify.error != null) {
             StatusBar(text = "Chyba: ${classify.error}", color = Term.red)
-        }
-
-        // Embed all button
-        if (semanticMode && hasApiKey && embeddingStatus == null && notebooks.isNotEmpty()) {
-            Text(
-                text = "Embed všechny sešity",
-                color = Term.cyan,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Term.surfaceLight)
-                    .clickable { onEmbedNotebooks(null) }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            )
         }
 
         // ── Obsah ──
@@ -371,20 +285,6 @@ fun NotebookListScreen(
                 }
             }
         } else {
-            // Pocet
-            val countText = when {
-                semanticMode && semanticResults != null -> "${displayList.size} výsledků (semantic)"
-                query.isNotBlank() && !semanticMode -> "${displayList.size}/${notebooks.size} sešitů"
-                else -> "${notebooks.size} sešitů"
-            }
-            Text(
-                text = countText,
-                color = Term.textDim,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
-
             // Seznam
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -564,6 +464,104 @@ fun NotebookListScreen(
                     }
                 }
             }
+        }
+
+        // ── Embed all (thumb zone) ──
+        if (semanticMode && hasApiKey && embeddingStatus == null && notebooks.isNotEmpty()) {
+            Text(
+                text = "Embed všechny sešity",
+                color = Term.cyan,
+                fontFamily = Term.font,
+                fontSize = Term.fontSizeLg,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Term.surfaceLight)
+                    .clickable { onEmbedNotebooks(null) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
+
+        // ── Search bar (thumb zone) ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Term.bg)
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Term.surfaceLight)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Mode indicator
+            Text(
+                text = if (semanticMode) "🔮" else "🔍",
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        semanticMode = !semanticMode
+                        if (!semanticMode) onClearSemantic()
+                    }
+                    .padding(4.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            BasicTextField(
+                value = query,
+                onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
+                textStyle = TextStyle(
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                ),
+                cursorBrush = SolidColor(if (semanticMode) Term.purple else Term.green),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
+                    onDone = {},
+                ),
+                decorationBox = { inner ->
+                    Box {
+                        if (query.isEmpty()) {
+                            Text(
+                                text = if (semanticMode) "sémantické hledání..." else "hledat sešity...",
+                                color = Term.textDim,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSize,
+                            )
+                        }
+                        inner()
+                    }
+                },
+                modifier = Modifier.weight(1f),
+            )
+            if (query.isNotEmpty()) {
+                Text(
+                    text = "✕",
+                    color = Term.textDim,
+                    fontSize = Term.fontSize,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { query = ""; onClearSemantic() }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            // Sort
+            Text(
+                text = "↕",
+                color = Term.orange,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onCycleSort() }
+                    .padding(4.dp),
+            )
         }
 
         // ── Bottom action bar ──
