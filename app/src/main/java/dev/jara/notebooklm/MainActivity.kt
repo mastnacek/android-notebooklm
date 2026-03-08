@@ -65,6 +65,8 @@ class MainActivity : ComponentActivity() {
             val detailDedupState by viewModel.detailDedup.collectAsStateWithLifecycle()
             val classifyState by viewModel.classify.collectAsStateWithLifecycle()
             val categories by viewModel.categories.collectAsStateWithLifecycle()
+            val facetsState by viewModel.facets.collectAsStateWithLifecycle()
+            val facetFilter by viewModel.facetFilter.collectAsStateWithLifecycle()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
 
             val folderPicker = rememberLauncherForActivityResult(
@@ -155,6 +157,9 @@ class MainActivity : ComponentActivity() {
                         onDismissClassify = { viewModel.dismissClassify() },
                         onCreateNotebook = { title, emoji -> viewModel.createNotebook(title, emoji) },
                         onDeleteNotebook = { viewModel.deleteNotebook(it) },
+                        facets = facetsState,
+                        facetFilter = facetFilter,
+                        onFacetFilterChange = { viewModel.setFacetFilter(it) },
                     )
 
                     is Screen.NotebookDetail -> NotebookDetailScreen(

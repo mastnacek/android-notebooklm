@@ -65,6 +65,9 @@ fun NotebookListScreen(
     onDismissClassify: () -> Unit,
     onCreateNotebook: (String, String) -> Unit,
     onDeleteNotebook: (String) -> Unit,
+    facets: Map<String, NotebookFacets>,
+    facetFilter: FacetFilter,
+    onFacetFilterChange: (FacetFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -75,8 +78,20 @@ fun NotebookListScreen(
     var query by remember { mutableStateOf("") }
     var semanticMode by remember { mutableStateOf(false) }
 
+    // Filter sheet state
+    var showFilterSheet by remember { mutableStateOf(false) }
+
     // Create notebook dialog
     var showCreateDialog by remember { mutableStateOf(false) }
+    if (showFilterSheet) {
+        FacetFilterSheet(
+            facets = facets,
+            currentFilter = facetFilter,
+            onFilterChange = onFacetFilterChange,
+            onDismiss = { showFilterSheet = false },
+        )
+    }
+
     if (showCreateDialog) {
         CreateNotebookDialog(
             onConfirm = { title, emoji -> onCreateNotebook(title, emoji); showCreateDialog = false },
@@ -194,6 +209,8 @@ fun NotebookListScreen(
                         sortLabel = sortMode.label,
                         onEmbedAll = { onEmbedNotebooks(null) },
                         onLogout = onLogout,
+                        filterCount = facetFilter.activeCount,
+                        onFilter = { showFilterSheet = true },
                     )
                 }
             }
@@ -341,6 +358,12 @@ fun NotebookListScreen(
             fulltextFiltered
         }
 
+        // Facetové filtrování
+        val facetFiltered = if (facetFilter.isEmpty) displayList
+        else displayList.filter { nb ->
+            val f = facets[nb.id] ?: return@filter true
+            facetFilter.matches(f)
+        }
 
         // ── Status bary ──
         if (embeddingStatus != null) {
@@ -410,7 +433,7 @@ fun NotebookListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (sortMode == NotebookSort.CATEGORY) {
-                    val grouped = displayList
+                    val grouped = facetFiltered
                         .groupBy { (categories[it.id] ?: "Bez kategorie").lowercase().replaceFirstChar { c -> c.uppercase() } }
                         .toSortedMap()
                     for ((cat, nbs) in grouped) {
@@ -451,7 +474,7 @@ fun NotebookListScreen(
                         }
                     }
                 } else {
-                    itemsIndexed(displayList) { _, nb ->
+                    itemsIndexed(facetFiltered) { _, nb ->
                         SwipeableNotebookItem(
                             nb = nb,
                             isFavorite = nb.id in favorites,
