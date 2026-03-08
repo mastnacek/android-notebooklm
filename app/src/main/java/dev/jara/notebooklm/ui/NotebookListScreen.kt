@@ -178,7 +178,7 @@ fun NotebookListScreen(
                             Box {
                                 if (query.isEmpty()) {
                                     Text(
-                                        text = if (semanticMode) "zeptej se na poznámky..." else "hledat sešity...",
+                                        text = if (semanticMode) "sémantické hledání..." else "fulltext hledání...",
                                         color = Term.textDim,
                                         fontFamily = Term.font,
                                         fontSize = Term.fontSize,
@@ -190,7 +190,7 @@ fun NotebookListScreen(
                         modifier = Modifier.weight(1f),
                     )
 
-                    // Clear + embed pill (AI mode) + sort
+                    // Clear
                     if (query.isNotEmpty()) {
                         Text(
                             text = "✕",
@@ -201,39 +201,7 @@ fun NotebookListScreen(
                                 .clickable { query = ""; onClearSemantic() }
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
                     }
-
-                    // Embed pill — jen v AI režimu, kompaktní
-                    if (semanticMode && hasApiKey && embeddingStatus == null && notebooks.isNotEmpty()) {
-                        Text(
-                            text = "Embed",
-                            color = Term.cyan,
-                            fontFamily = Term.font,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Term.cyan.copy(alpha = 0.15f))
-                                .clickable { onEmbedNotebooks(null) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-
-                    // Sort pill
-                    Text(
-                        text = "↕ ${sortMode.label}",
-                        color = Term.orange,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Term.orange.copy(alpha = 0.12f))
-                            .clickable { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onCycleSort() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
                 }
                 if (!WindowInsets.isImeVisible) {
                     BottomActionBar(
@@ -242,7 +210,9 @@ fun NotebookListScreen(
                         onSettings = onSettings,
                         hasApiKey = hasApiKey,
                         onStartDedup = { if (!dedup.running) onStartDedup() },
-                        onStartClassify = { if (!classify.running) onStartClassify() },
+                        onCycleSort = onCycleSort,
+                        sortLabel = sortMode.label,
+                        onEmbedAll = { onEmbedNotebooks(null) },
                         onLogout = onLogout,
                     )
                 }
@@ -293,6 +263,7 @@ fun NotebookListScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Term.surface)
+                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -302,6 +273,25 @@ fun NotebookListScreen(
                 fontFamily = Term.font,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "${notebooks.size}",
+                color = Term.bg,
+                fontFamily = Term.font,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Term.green.copy(alpha = 0.7f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            // Indikátor přihlášení
+            Text(
+                text = "●",
+                color = Term.green,
+                fontSize = 10.sp,
             )
         }
 
@@ -371,32 +361,6 @@ fun NotebookListScreen(
             fulltextFiltered
         }
 
-        // ── Count + mode info ──
-        val countText = when {
-            semanticMode && semanticResults != null -> "${displayList.size} výsledků (semantic)"
-            query.isNotBlank() && !semanticMode -> "${displayList.size}/${notebooks.size} sešitů"
-            else -> "${notebooks.size} sešitů"
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = countText,
-                color = Term.textDim,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = if (semanticMode) "semantic" else "fulltext",
-                color = if (semanticMode) Term.purple else Term.green,
-                fontFamily = Term.font,
-                fontSize = 11.sp,
-            )
-        }
 
         // ── Status bary ──
         if (embeddingStatus != null) {
@@ -987,7 +951,9 @@ private fun BottomActionBar(
     onSettings: () -> Unit,
     hasApiKey: Boolean,
     onStartDedup: () -> Unit,
-    onStartClassify: () -> Unit,
+    onCycleSort: () -> Unit,
+    sortLabel: String,
+    onEmbedAll: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -1002,21 +968,24 @@ private fun BottomActionBar(
     ) {
         BottomAction("＋", "Nový", Term.green) { onCreateNotebook() }
         BottomAction("⟳", "Sync", Term.cyan) { onRefresh() }
-        BottomAction("⚙", "Nastavení", Term.orange) { onSettings() }
+        BottomAction("↕", sortLabel, Term.orange) { onCycleSort() }
+        BottomAction("⚙", "Nastavení", Term.textDim) { onSettings() }
         Box {
-            BottomAction("⋮", "Více", Term.textDim) { menuExpanded = true }
+            BottomAction("⋯", "", Term.textDim) { menuExpanded = true }
             DropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
                 modifier = Modifier.background(Term.surface),
             ) {
+                if (hasApiKey) {
+                    DropdownMenuItem(
+                        text = { Text("Embed všechny", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                        onClick = { menuExpanded = false; onEmbedAll() },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Deduplikace zdrojů", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
                     onClick = { menuExpanded = false; onStartDedup() },
-                )
-                DropdownMenuItem(
-                    text = { Text("AI klasifikace", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
-                    onClick = { menuExpanded = false; onStartClassify() },
                 )
                 DropdownMenuItem(
                     text = { Text("Odhlásit", color = Term.red, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
@@ -1047,12 +1016,14 @@ private fun BottomAction(
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            color = Term.textDim,
-            fontFamily = Term.font,
-            fontSize = 11.sp,
-        )
+        if (label.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 11.sp,
+            )
+        }
     }
 }

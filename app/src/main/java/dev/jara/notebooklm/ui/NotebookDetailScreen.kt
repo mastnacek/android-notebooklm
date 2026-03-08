@@ -251,13 +251,14 @@ private fun ChatTab(
         }
 
         // Input card
-        val inputShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(inputShape)
-                .background(Term.surface)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Term.surfaceLight)
+                .border(1.dp, Term.green.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
@@ -429,56 +430,51 @@ private fun SourcesTab(
         )
     }
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Souhrn
-        if (!detail.summary.isNullOrBlank()) {
-            item {
-                SummaryCard(detail.summary)
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
-
-        // Pridat zdroj
-        item {
-            DetailPill("＋ Zdroj", Term.green) { showAddDialog = true }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        if (detail.sources.isEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = "\uD83D\uDCDA", fontSize = 48.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Žádné zdroje",
-                        color = Term.white,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSizeLg,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Přidej webové stránky, texty nebo YouTube videa",
-                        color = Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                    )
+    Box(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 56.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (detail.sources.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(text = "\uD83D\uDCDA", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Žádné zdroje",
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSizeLg,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Přidej webové stránky, texty nebo YouTube videa",
+                            color = Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        )
+                    }
+                }
+            } else {
+                items(detail.sources, key = { it.id }) { src ->
+                    SwipeToDismissSourceCard(src, onDeleteSource)
                 }
             }
-        } else {
-            items(detail.sources, key = { it.id }) { src ->
-                SwipeToDismissSourceCard(src, onDeleteSource)
-            }
         }
+
+        // Plovoucí tlačítko — vždy viditelné dole
+        DetailPill("＋ Zdroj", Term.green, onClick = { showAddDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp),
+        )
     }
 }
 
@@ -680,13 +676,6 @@ private fun ArtifactsTab(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Generovat
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                DetailPill("＋ Generovat", Term.purple) { showGenerate = !showGenerate }
-            }
-        }
-
         if (showGenerate) {
             item {
                 GenerateArtifactPanel(onGenerateArtifact) { showGenerate = false }
@@ -723,6 +712,12 @@ private fun ArtifactsTab(
 
         items(detail.artifacts) { art ->
             ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, downloads[art.id])
+        }
+
+        // Generovat — dole v thumb area
+        item {
+            Spacer(modifier = Modifier.height(4.dp))
+            DetailPill("＋ Generovat", Term.purple) { showGenerate = !showGenerate }
         }
     }
 }
@@ -1240,6 +1235,7 @@ private fun NoteCard(note: NotebookLmApi.Note) {
 private fun DetailPill(
     text: String,
     color: Color,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(10.dp)
@@ -1249,7 +1245,7 @@ private fun DetailPill(
         fontFamily = Term.font,
         fontSize = Term.fontSize,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
+        modifier = modifier
             .clip(shape)
             .border(1.dp, color.copy(alpha = 0.3f), shape)
             .clickable(onClick = onClick)

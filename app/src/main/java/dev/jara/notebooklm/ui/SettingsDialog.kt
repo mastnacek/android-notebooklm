@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun SettingsDialog(
@@ -36,23 +37,32 @@ fun SettingsDialog(
     val displayPath = if (currentDownloadPath.isNotEmpty()) {
         try {
             val decoded = Uri.decode(currentDownloadPath)
-            val lastPart = decoded.substringAfter("document/primary:", decoded)
-                .substringAfter("document/", decoded)
-            lastPart.ifEmpty { currentDownloadPath.takeLast(40) }
+            // Vytáhni cestu za "primary:" nebo "document/"
+            val raw = decoded.substringAfter("document/primary:", "")
+                .ifEmpty { decoded.substringAfter("document/", "") }
+                .ifEmpty { decoded }
+            // Zobraz max poslední 2 segmenty cesty
+            val segments = raw.split("/").filter { it.isNotEmpty() }
+            if (segments.size <= 2) segments.joinToString("/")
+            else segments.takeLast(2).joinToString("/", prefix = ".../")
         } catch (_: Exception) {
-            currentDownloadPath.takeLast(40)
+            currentDownloadPath.substringAfterLast("/")
         }
     } else {
         "Downloads/notebooklm"
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Term.surface)
-                .padding(20.dp),
+                .padding(24.dp),
         ) {
             // Header
             Text(

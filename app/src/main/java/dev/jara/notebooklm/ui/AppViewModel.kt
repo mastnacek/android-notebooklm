@@ -39,7 +39,7 @@ enum class NotebookSort(val label: String) {
     DEFAULT("datum"),
     NAME_ASC("A-Z"),
     NAME_DESC("Z-A"),
-    CATEGORY("kategorie");
+    CATEGORY("kat.");
 
     fun next(): NotebookSort = entries[(ordinal + 1) % entries.size]
 }

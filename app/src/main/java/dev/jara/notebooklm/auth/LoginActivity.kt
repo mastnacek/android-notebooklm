@@ -30,25 +30,28 @@ class LoginActivity : Activity() {
 
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
-        cookieManager.setAcceptThirdPartyCookies(WebView(this), true)
+        // Vymazat stare cookies a pockat na dokonceni pred nacitanim stranky
+        cookieManager.removeAllCookies { Log.i(TAG, "Cookies cleared: $it") }
+        cookieManager.flush()
 
         val webView = WebView(this).apply {
+            cookieManager.setAcceptThirdPartyCookies(this, true)
+
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.databaseEnabled = true
             settings.userAgentString =
                 "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    // Jsme na NotebookLM po prihlaseni?
-                    if (url != null && url.startsWith(NOTEBOOKLM_URL)) {
-                        // Pockame az se stranka nacte
-                    }
+                    Log.i(TAG, "onPageStarted: $url")
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    Log.i(TAG, "onPageFinished: $url")
                     if (url != null && url.startsWith(NOTEBOOKLM_URL)) {
                         // Ziskame cookies pro vice domen
                         val nbCookies = cookieManager.getCookie("https://notebooklm.google.com") ?: ""
