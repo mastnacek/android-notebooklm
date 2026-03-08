@@ -309,6 +309,14 @@ fun NotebookListScreen(
                     fontSize = Term.fontSizeLg,
                     fontWeight = FontWeight.Bold,
                 )
+                ActionPill(
+                    text = if (selectedIds.size == notebooks.size) "Žádný" else "Vše",
+                    color = Term.cyan,
+                    onClick = {
+                        selectedIds = if (selectedIds.size == notebooks.size) emptySet()
+                        else notebooks.map { it.id }.toSet()
+                    },
+                )
                 Spacer(modifier = Modifier.weight(1f))
                 if (hasApiKey) {
                     ActionPill(
