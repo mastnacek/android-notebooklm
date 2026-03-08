@@ -8,7 +8,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jara.notebooklm.auth.AuthManager
-import dev.jara.notebooklm.rpc.NotebookLmApi
+import dev.jara.notebooklm.rpc.*
 import dev.jara.notebooklm.search.EmbeddingDb
 import dev.jara.notebooklm.search.OpenRouterEmbedding
 import android.webkit.CookieManager
@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 sealed class Screen {
     object Login : Screen()
     object NotebookList : Screen()
-    data class NotebookDetail(val notebook: NotebookLmApi.Notebook) : Screen()
+    data class NotebookDetail(val notebook: Notebook) : Screen()
 }
 
 /** Tab v detailu notebooku */
@@ -88,12 +88,12 @@ data class ClassificationState(
 )
 
 data class DetailState(
-    val sources: List<NotebookLmApi.Source> = emptyList(),
+    val sources: List<Source> = emptyList(),
     val summary: String? = null,
     val loading: Boolean = true,
-    val artifacts: List<NotebookLmApi.Artifact> = emptyList(),
-    val notes: List<NotebookLmApi.Note> = emptyList(),
-    val chatMessages: List<NotebookLmApi.ChatMessage> = emptyList(),
+    val artifacts: List<Artifact> = emptyList(),
+    val notes: List<Note> = emptyList(),
+    val chatMessages: List<ChatMessage> = emptyList(),
     val chatAnswering: Boolean = false,
     val conversationId: String = java.util.UUID.randomUUID().toString(),
     val tab: DetailTab = DetailTab.CHAT,
@@ -162,8 +162,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     )
     val screen: StateFlow<Screen> get() = _screen
 
-    private val _notebooks = MutableStateFlow<List<NotebookLmApi.Notebook>>(emptyList())
-    val notebooks: StateFlow<List<NotebookLmApi.Notebook>> get() = _notebooks
+    private val _notebooks = MutableStateFlow<List<Notebook>>(emptyList())
+    val notebooks: StateFlow<List<Notebook>> get() = _notebooks
 
     private val _notebooksLoading = MutableStateFlow(false)
     val notebooksLoading: StateFlow<Boolean> get() = _notebooksLoading
@@ -241,7 +241,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun openNotebook(nb: NotebookLmApi.Notebook) {
+    fun openNotebook(nb: Notebook) {
         val tokens = authManager.loadTokens() ?: return
         _screen.value = Screen.NotebookDetail(nb)
         _detail.value = DetailState(loading = true)
@@ -288,8 +288,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (question.isBlank() || current.chatAnswering) return
 
         val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
-        val updatedMessages = current.chatMessages + NotebookLmApi.ChatMessage(
-            NotebookLmApi.ChatRole.USER, question
+        val updatedMessages = current.chatMessages + ChatMessage(
+            ChatRole.USER, question
         )
         _detail.value = current.copy(chatMessages = updatedMessages, chatAnswering = true)
 
@@ -303,8 +303,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     history = updatedMessages,
                     conversationId = current.conversationId,
                 )
-                val withAnswer = updatedMessages + NotebookLmApi.ChatMessage(
-                    NotebookLmApi.ChatRole.ASSISTANT, answer
+                val withAnswer = updatedMessages + ChatMessage(
+                    ChatRole.ASSISTANT, answer
                 )
                 _detail.value = _detail.value.copy(chatMessages = withAnswer, chatAnswering = false)
             } catch (e: Exception) {
@@ -459,7 +459,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
                 for ((title, group) in byTitle) {
                     if (group.size <= 1) continue
-                    val allText = group.all { it.type == NotebookLmApi.SourceType.TEXT }
+                    val allText = group.all { it.type == SourceType.TEXT }
                     if (allText) {
                         val hashGroups = mutableMapOf<String, MutableList<String>>()
                         for (src in group) {
@@ -525,8 +525,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun generateArtifact(
-        type: NotebookLmApi.GenerateType,
-        options: NotebookLmApi.GenerateOptions = NotebookLmApi.GenerateOptions(),
+        type: GenerateType,
+        options: GenerateOptions = GenerateOptions(),
     ) {
         val tokens = authManager.loadTokens() ?: return
         val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
@@ -622,7 +622,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Serazeny seznam — oblibene nahore, pak podle aktualniho razeni */
-    fun sortedNotebooks(notebooks: List<NotebookLmApi.Notebook>): List<NotebookLmApi.Notebook> {
+    fun sortedNotebooks(notebooks: List<Notebook>): List<Notebook> {
         val favs = _favorites.value
         val cats = _categories.value
         val sorted = when (_notebookSort.value) {
@@ -636,13 +636,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else sorted.sortedByDescending { it.id in favs }
     }
 
-    fun downloadArtifact(artifact: NotebookLmApi.Artifact) {
+    fun downloadArtifact(artifact: Artifact) {
         val url = artifact.url ?: return
         val ext = when (artifact.type) {
-            NotebookLmApi.ArtifactType.AUDIO -> ".mp3"
-            NotebookLmApi.ArtifactType.VIDEO -> ".mp4"
-            NotebookLmApi.ArtifactType.SLIDE_DECK -> ".pdf"
-            NotebookLmApi.ArtifactType.INFOGRAPHIC -> ".png"
+            ArtifactType.AUDIO -> ".mp3"
+            ArtifactType.VIDEO -> ".mp4"
+            ArtifactType.SLIDE_DECK -> ".pdf"
+            ArtifactType.INFOGRAPHIC -> ".png"
             else -> ""
         }
         val fileName = "${artifact.title}$ext".replace("/", "_")
@@ -795,7 +795,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ── Download path & detekce ──
 
     /** Najde uz stazene artefakty v download slozce */
-    private fun detectDownloadedArtifacts(artifacts: List<NotebookLmApi.Artifact>): Map<String, DownloadState> {
+    private fun detectDownloadedArtifacts(artifacts: List<Artifact>): Map<String, DownloadState> {
         val result = mutableMapOf<String, DownloadState>()
         val ctx = getApplication<Application>()
         val savedUri = getDownloadPath()
@@ -803,10 +803,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         for (art in artifacts) {
             if (art.url == null) continue
             val ext = when (art.type) {
-                NotebookLmApi.ArtifactType.AUDIO -> ".mp3"
-                NotebookLmApi.ArtifactType.VIDEO -> ".mp4"
-                NotebookLmApi.ArtifactType.SLIDE_DECK -> ".pdf"
-                NotebookLmApi.ArtifactType.INFOGRAPHIC -> ".png"
+                ArtifactType.AUDIO -> ".mp3"
+                ArtifactType.VIDEO -> ".mp4"
+                ArtifactType.SLIDE_DECK -> ".pdf"
+                ArtifactType.INFOGRAPHIC -> ".png"
                 else -> ""
             }
             val fileName = "${art.title}$ext".replace("/", "_")
@@ -911,7 +911,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     for ((title, group) in byTitle) {
                         if (group.size <= 1) continue
 
-                        val allText = group.all { it.type == NotebookLmApi.SourceType.TEXT }
+                        val allText = group.all { it.type == SourceType.TEXT }
                         if (allText) {
                             // Content-aware deduplikace — hash fulltext obsahu
                             val hashGroups = mutableMapOf<String, MutableList<String>>()

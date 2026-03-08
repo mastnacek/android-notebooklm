@@ -53,12 +53,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.jara.notebooklm.rpc.NotebookLmApi
+import dev.jara.notebooklm.rpc.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NotebookListScreen(
-    notebooks: List<NotebookLmApi.Notebook>,
+    notebooks: List<Notebook>,
     loading: Boolean,
     semanticResults: List<String>?,
     searchLoading: Boolean,
@@ -66,7 +66,7 @@ fun NotebookListScreen(
     hasApiKey: Boolean,
     favorites: Set<String>,
     sortMode: NotebookSort,
-    onNotebookClick: (NotebookLmApi.Notebook) -> Unit,
+    onNotebookClick: (Notebook) -> Unit,
     onRefresh: () -> Unit,
     onLogout: () -> Unit,
     onSemanticSearch: (String) -> Unit,
@@ -565,7 +565,7 @@ private fun StatusBar(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NotebookCard(
-    nb: NotebookLmApi.Notebook,
+    nb: Notebook,
     isFavorite: Boolean,
     category: String?,
     isSelected: Boolean,
@@ -657,7 +657,7 @@ private fun NotebookCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableNotebookItem(
-    nb: NotebookLmApi.Notebook,
+    nb: Notebook,
     isFavorite: Boolean,
     category: String?,
     isSelected: Boolean,

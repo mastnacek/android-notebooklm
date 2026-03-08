@@ -44,11 +44,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import dev.jara.notebooklm.rpc.NotebookLmApi
+import dev.jara.notebooklm.rpc.*
 
 @Composable
 fun NotebookDetailScreen(
-    notebook: NotebookLmApi.Notebook,
+    notebook: Notebook,
     detail: DetailState,
     onBack: () -> Unit,
     onTabSwitch: (DetailTab) -> Unit,
@@ -56,14 +56,14 @@ fun NotebookDetailScreen(
     onSaveAsNote: (String) -> Unit,
     onPlayAudio: (String, String) -> Unit,
     onStopAudio: () -> Unit,
-    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onDownloadAudio: (Artifact) -> Unit,
     onAddSource: (type: String, value: String, title: String) -> Unit,
     onDeleteSource: (String) -> Unit,
     onDeleteSources: (Set<String>) -> Unit,
     onDedupSources: () -> Unit,
     onDismissDedup: () -> Unit,
     dedup: DeduplicationState,
-    onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onGenerateArtifact: (GenerateType, GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     onDeleteNote: (String) -> Unit,
@@ -444,10 +444,10 @@ private fun SummaryCard(summary: String) {
 
 @Composable
 private fun ChatBubble(
-    msg: NotebookLmApi.ChatMessage,
+    msg: ChatMessage,
     onSaveAsNote: (String) -> Unit,
 ) {
-    val isUser = msg.role == NotebookLmApi.ChatRole.USER
+    val isUser = msg.role == ChatRole.USER
     val context = LocalContext.current
     val shape = RoundedCornerShape(14.dp)
 
@@ -773,7 +773,7 @@ private fun <T> Set<T>.toggle(item: T): Set<T> =
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SelectableSourceCard(
-    src: NotebookLmApi.Source,
+    src: Source,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -807,7 +807,7 @@ private fun SelectableSourceCard(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeToDismissSourceCard(
-    src: NotebookLmApi.Source,
+    src: Source,
     onDeleteSource: (String) -> Unit,
     onLongClick: () -> Unit = {},
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback = LocalHapticFeedback.current,
@@ -884,7 +884,7 @@ private fun SwipeToDismissSourceCard(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SourceCard(
-    src: NotebookLmApi.Source,
+    src: Source,
     onLongClick: () -> Unit = {},
 ) {
     val shape = RoundedCornerShape(14.dp)
@@ -1024,8 +1024,8 @@ private fun AddSourceDialog(
 private fun ArtifactsTab(
     detail: DetailState,
     onPlayAudio: (String, String) -> Unit,
-    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
-    onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onDownloadAudio: (Artifact) -> Unit,
+    onGenerateArtifact: (GenerateType, GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloads: Map<String, DownloadState>,
@@ -1119,22 +1119,22 @@ private fun ArtifactsTab(
 
 @Composable
 private fun GenerateArtifactPanel(
-    onGenerate: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onGenerate: (GenerateType, GenerateOptions) -> Unit,
     onClose: () -> Unit,
 ) {
-    var selectedType by remember { mutableStateOf<NotebookLmApi.GenerateType?>(null) }
+    var selectedType by remember { mutableStateOf<GenerateType?>(null) }
 
     // Options state
-    var audioFormat by remember { mutableStateOf(NotebookLmApi.AudioFormat.DEEP_DIVE) }
-    var audioLength by remember { mutableStateOf(NotebookLmApi.AudioLength.DEFAULT) }
-    var videoFormat by remember { mutableStateOf(NotebookLmApi.VideoFormat.EXPLAINER) }
-    var videoStyle by remember { mutableStateOf(NotebookLmApi.VideoStyle.AUTO) }
-    var quizDifficulty by remember { mutableStateOf(NotebookLmApi.QuizDifficulty.MEDIUM) }
-    var quizQuantity by remember { mutableStateOf(NotebookLmApi.QuizQuantity.STANDARD) }
-    var infraOrientation by remember { mutableStateOf(NotebookLmApi.InfographicOrientation.PORTRAIT) }
-    var infraDetail by remember { mutableStateOf(NotebookLmApi.InfographicDetail.STANDARD) }
-    var slideFormat by remember { mutableStateOf(NotebookLmApi.SlideDeckFormat.DETAILED) }
-    var slideLength by remember { mutableStateOf(NotebookLmApi.SlideDeckLength.DEFAULT) }
+    var audioFormat by remember { mutableStateOf(AudioFormat.DEEP_DIVE) }
+    var audioLength by remember { mutableStateOf(AudioLength.DEFAULT) }
+    var videoFormat by remember { mutableStateOf(VideoFormat.EXPLAINER) }
+    var videoStyle by remember { mutableStateOf(VideoStyle.AUTO) }
+    var quizDifficulty by remember { mutableStateOf(QuizDifficulty.MEDIUM) }
+    var quizQuantity by remember { mutableStateOf(QuizQuantity.STANDARD) }
+    var infraOrientation by remember { mutableStateOf(InfographicOrientation.PORTRAIT) }
+    var infraDetail by remember { mutableStateOf(InfographicDetail.STANDARD) }
+    var slideFormat by remember { mutableStateOf(SlideDeckFormat.DETAILED) }
+    var slideLength by remember { mutableStateOf(SlideDeckLength.DEFAULT) }
     var instructions by remember { mutableStateOf("") }
 
     val shape = RoundedCornerShape(14.dp)
@@ -1152,7 +1152,7 @@ private fun GenerateArtifactPanel(
                 fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(10.dp))
 
-            val types = NotebookLmApi.GenerateType.entries
+            val types = GenerateType.entries
             for (row in types.chunked(4)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1188,62 +1188,62 @@ private fun GenerateArtifactPanel(
             Spacer(modifier = Modifier.height(10.dp))
 
             when (type) {
-                NotebookLmApi.GenerateType.AUDIO -> {
+                GenerateType.AUDIO -> {
                     OptionRow("Formát") {
-                        for (f in NotebookLmApi.AudioFormat.entries) {
+                        for (f in AudioFormat.entries) {
                             OptionChip(f.label, f == audioFormat) { audioFormat = f }
                         }
                     }
                     OptionRow("Délka") {
-                        for (l in NotebookLmApi.AudioLength.entries) {
+                        for (l in AudioLength.entries) {
                             OptionChip(l.label, l == audioLength) { audioLength = l }
                         }
                     }
                 }
-                NotebookLmApi.GenerateType.VIDEO -> {
+                GenerateType.VIDEO -> {
                     OptionRow("Formát") {
-                        for (f in NotebookLmApi.VideoFormat.entries) {
+                        for (f in VideoFormat.entries) {
                             OptionChip(f.label, f == videoFormat) { videoFormat = f }
                         }
                     }
                     OptionRow("Styl") {
-                        for (s in NotebookLmApi.VideoStyle.entries) {
+                        for (s in VideoStyle.entries) {
                             OptionChip(s.label, s == videoStyle) { videoStyle = s }
                         }
                     }
                 }
-                NotebookLmApi.GenerateType.QUIZ -> {
+                GenerateType.QUIZ -> {
                     OptionRow("Obtížnost") {
-                        for (d in NotebookLmApi.QuizDifficulty.entries) {
+                        for (d in QuizDifficulty.entries) {
                             OptionChip(d.label, d == quizDifficulty) { quizDifficulty = d }
                         }
                     }
                     OptionRow("Množství") {
-                        for (q in NotebookLmApi.QuizQuantity.entries) {
+                        for (q in QuizQuantity.entries) {
                             OptionChip(q.label, q == quizQuantity) { quizQuantity = q }
                         }
                     }
                 }
-                NotebookLmApi.GenerateType.INFOGRAPHIC -> {
+                GenerateType.INFOGRAPHIC -> {
                     OptionRow("Orientace") {
-                        for (o in NotebookLmApi.InfographicOrientation.entries) {
+                        for (o in InfographicOrientation.entries) {
                             OptionChip(o.label, o == infraOrientation) { infraOrientation = o }
                         }
                     }
                     OptionRow("Detail") {
-                        for (d in NotebookLmApi.InfographicDetail.entries) {
+                        for (d in InfographicDetail.entries) {
                             OptionChip(d.label, d == infraDetail) { infraDetail = d }
                         }
                     }
                 }
-                NotebookLmApi.GenerateType.SLIDE_DECK -> {
+                GenerateType.SLIDE_DECK -> {
                     OptionRow("Formát") {
-                        for (f in NotebookLmApi.SlideDeckFormat.entries) {
+                        for (f in SlideDeckFormat.entries) {
                             OptionChip(f.label, f == slideFormat) { slideFormat = f }
                         }
                     }
                     OptionRow("Délka") {
-                        for (l in NotebookLmApi.SlideDeckLength.entries) {
+                        for (l in SlideDeckLength.entries) {
                             OptionChip(l.label, l == slideLength) { slideLength = l }
                         }
                     }
@@ -1263,7 +1263,7 @@ private fun GenerateArtifactPanel(
 
             Spacer(modifier = Modifier.height(10.dp))
             DetailPill("▶ Spustit", Term.green) {
-                val opts = NotebookLmApi.GenerateOptions(
+                val opts = GenerateOptions(
                     instructions = instructions.takeIf { it.isNotBlank() },
                     audioFormat = audioFormat,
                     audioLength = audioLength,
@@ -1283,14 +1283,14 @@ private fun GenerateArtifactPanel(
     }
 }
 
-private fun generateTypeIcon(type: NotebookLmApi.GenerateType): String = when (type) {
-    NotebookLmApi.GenerateType.AUDIO -> "🎧"
-    NotebookLmApi.GenerateType.VIDEO -> "🎥"
-    NotebookLmApi.GenerateType.QUIZ -> "❓"
-    NotebookLmApi.GenerateType.MIND_MAP -> "🧠"
-    NotebookLmApi.GenerateType.INFOGRAPHIC -> "🖼️"
-    NotebookLmApi.GenerateType.SLIDE_DECK -> "📊"
-    NotebookLmApi.GenerateType.DATA_TABLE -> "📋"
+private fun generateTypeIcon(type: GenerateType): String = when (type) {
+    GenerateType.AUDIO -> "🎧"
+    GenerateType.VIDEO -> "🎥"
+    GenerateType.QUIZ -> "❓"
+    GenerateType.MIND_MAP -> "🧠"
+    GenerateType.INFOGRAPHIC -> "🖼️"
+    GenerateType.SLIDE_DECK -> "📊"
+    GenerateType.DATA_TABLE -> "📋"
 }
 
 @Composable
@@ -1327,9 +1327,9 @@ private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToDismissArtifactCard(
-    art: NotebookLmApi.Artifact,
+    art: Artifact,
     onPlayAudio: (String, String) -> Unit,
-    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onDownloadAudio: (Artifact) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloadState: DownloadState?,
@@ -1406,18 +1406,18 @@ private fun SwipeToDismissArtifactCard(
 
 @Composable
 private fun ArtifactCard(
-    art: NotebookLmApi.Artifact,
+    art: Artifact,
     onPlayAudio: (String, String) -> Unit,
-    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onDownloadAudio: (Artifact) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
     downloadState: DownloadState?,
 ) {
     val shape = RoundedCornerShape(14.dp)
     val statusColor = when (art.status) {
-        NotebookLmApi.ArtifactStatus.COMPLETED -> Term.green
-        NotebookLmApi.ArtifactStatus.PROCESSING -> Term.orange
-        NotebookLmApi.ArtifactStatus.PENDING -> Term.cyan
-        NotebookLmApi.ArtifactStatus.FAILED -> Term.red
+        ArtifactStatus.COMPLETED -> Term.green
+        ArtifactStatus.PROCESSING -> Term.orange
+        ArtifactStatus.PENDING -> Term.cyan
+        ArtifactStatus.FAILED -> Term.red
     }
     val isDownloading = downloadState != null && !downloadState.done && downloadState.error == null
 
@@ -1448,12 +1448,12 @@ private fun ArtifactCard(
             }
 
             // Akce — kompaktní, na stejném řádku vpravo
-            if (art.url != null && art.status == NotebookLmApi.ArtifactStatus.COMPLETED) {
+            if (art.url != null && art.status == ArtifactStatus.COMPLETED) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (art.type == NotebookLmApi.ArtifactType.AUDIO || art.type == NotebookLmApi.ArtifactType.VIDEO) {
+                    if (art.type == ArtifactType.AUDIO || art.type == ArtifactType.VIDEO) {
                         DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
                     }
-                    if (art.type == NotebookLmApi.ArtifactType.QUIZ) {
+                    if (art.type == ArtifactType.QUIZ) {
                         DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
                     }
 
@@ -1465,10 +1465,10 @@ private fun ArtifactCard(
                                 if (downloadState.filePath != null) {
                                     val uri = android.net.Uri.parse(downloadState.filePath)
                                     val mime = when (art.type) {
-                                        NotebookLmApi.ArtifactType.AUDIO -> "audio/*"
-                                        NotebookLmApi.ArtifactType.VIDEO -> "video/*"
-                                        NotebookLmApi.ArtifactType.SLIDE_DECK -> "application/pdf"
-                                        NotebookLmApi.ArtifactType.INFOGRAPHIC -> "image/*"
+                                        ArtifactType.AUDIO -> "audio/*"
+                                        ArtifactType.VIDEO -> "video/*"
+                                        ArtifactType.SLIDE_DECK -> "application/pdf"
+                                        ArtifactType.INFOGRAPHIC -> "image/*"
                                         else -> "*/*"
                                     }
                                     val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -1569,7 +1569,7 @@ private fun NotesTab(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToDismissNoteCard(
-    note: NotebookLmApi.Note,
+    note: Note,
     onDeleteNote: (String) -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
@@ -1637,7 +1637,7 @@ private fun SwipeToDismissNoteCard(
 }
 
 @Composable
-private fun NoteCard(note: NotebookLmApi.Note) {
+private fun NoteCard(note: Note) {
     var expanded by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(14.dp)
     val context = LocalContext.current

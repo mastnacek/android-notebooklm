@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
 import dev.jara.notebooklm.auth.AuthManager
-import dev.jara.notebooklm.rpc.NotebookLmApi
+import dev.jara.notebooklm.rpc.*
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +26,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _isLoggedIn = MutableStateFlow(authManager.isLoggedIn())
     val isLoggedIn: StateFlow<Boolean> get() = _isLoggedIn
 
-    private var lastNotebooks = listOf<NotebookLmApi.Notebook>()
+    private var lastNotebooks = listOf<Notebook>()
 
     init {
         appendLine(TermLine.Text("NotebookLM Terminal v0.1.0-alpha"))
