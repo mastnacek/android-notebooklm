@@ -75,21 +75,40 @@ fun NotebookDetailScreen(
             .windowInsetsPadding(WindowInsets.navigationBars)
             .imePadding()
     ) {
-        // ── Header ──
+        // ── Header s typewriter efektem ──
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Term.surface)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
+            val fullTitle = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} ${notebook.title}" else notebook.title
+            var typingTrigger by remember { mutableIntStateOf(0) }
+            var visibleChars by remember { mutableIntStateOf(0) }
+            var animationDone by remember { mutableStateOf(false) }
+
+            // Typewriter animace — postupne zobrazuje znaky
+            LaunchedEffect(fullTitle, typingTrigger) {
+                animationDone = false
+                visibleChars = 0
+                for (i in 1..fullTitle.length) {
+                    visibleChars = i
+                    delay(35)
+                }
+                animationDone = true
+            }
+
+            val displayText = if (animationDone) fullTitle else fullTitle.take(visibleChars)
+
             Text(
-                text = "$prefix${notebook.title}",
+                text = displayText,
                 color = Term.white,
                 fontFamily = Term.font,
                 fontSize = Term.fontSizeLg,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.clickable { typingTrigger++ },
             )
         }
 
