@@ -12,21 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.ime
-
-private val BG = Color(0xFF0D1117)
-private val PROMPT_COLOR = Color(0xFF00FF41)
-private val FONT_SIZE = 13.sp
 
 @Composable
 fun TerminalScreen(
@@ -47,7 +36,7 @@ fun TerminalScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BG)
+            .background(Term.bg)
             .windowInsetsPadding(WindowInsets.systemBars)
             .windowInsetsPadding(WindowInsets.ime)
             .padding(8.dp)
@@ -63,9 +52,9 @@ fun TerminalScreen(
                 Text(
                     text = line.text,
                     color = line.color,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = FONT_SIZE,
-                    lineHeight = FONT_SIZE * 1.3f,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    lineHeight = Term.fontSize * 1.3f,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -77,25 +66,25 @@ fun TerminalScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF161B22))
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .background(Term.surfaceLight)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "notebooklm> ",
-                color = PROMPT_COLOR,
-                fontFamily = FontFamily.Monospace,
-                fontSize = FONT_SIZE,
+                color = Term.green,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
             )
             BasicTextField(
                 value = input,
                 onValueChange = { input = it },
                 textStyle = TextStyle(
-                    color = Color.White,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = FONT_SIZE,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
                 ),
-                cursorBrush = SolidColor(PROMPT_COLOR),
+                cursorBrush = SolidColor(Term.green),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(

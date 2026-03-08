@@ -60,7 +60,7 @@ fun SettingsDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(DS.dialogRadius))
                 .background(Term.surface)
                 .padding(24.dp),
         ) {
@@ -73,7 +73,7 @@ fun SettingsDialog(
                 fontWeight = FontWeight.Bold,
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ── Motiv — ikonky ──
             SettingsLabel("Motiv")
@@ -90,7 +90,7 @@ fun SettingsDialog(
                 )
                 for (opt in options) {
                     val selected = opt.mode == currentThemeMode
-                    val shape = RoundedCornerShape(12.dp)
+                    val shape = RoundedCornerShape(DS.buttonRadius)
                     Text(
                         text = opt.icon,
                         fontSize = 22.sp,
@@ -98,8 +98,8 @@ fun SettingsDialog(
                             .clip(shape)
                             .then(
                                 if (selected) Modifier
-                                    .background(Term.green.copy(alpha = 0.15f))
-                                    .border(1.5.dp, Term.green.copy(alpha = 0.5f), shape)
+                                    .background(Term.green.copy(alpha = DS.selectionAlpha))
+                                    .border(DS.borderWidthSelected, Term.green.copy(alpha = DS.borderAlpha), shape)
                                 else Modifier.background(Term.bg)
                             )
                             .clickable { onThemeChange(opt.mode) }
@@ -108,11 +108,11 @@ fun SettingsDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ── OpenRouter API key ──
             SettingsLabel("OpenRouter API klíč")
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             SettingsInput(
                 value = apiKey,
                 onValueChange = { apiKey = it },
@@ -126,22 +126,22 @@ fun SettingsDialog(
                 modifier = Modifier.padding(top = 4.dp),
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ── Klasifikacni model ──
             SettingsLabel("Model pro klasifikaci")
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             SettingsInput(
                 value = classifyModel,
                 onValueChange = { classifyModel = it },
                 placeholder = "google/gemini-...",
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ── Slozka pro stahovani ──
             SettingsLabel("Složka pro stahování")
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -153,7 +153,7 @@ fun SettingsDialog(
                     fontSize = Term.fontSize,
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(DS.inputRadius))
                         .background(Term.bg)
                         .padding(12.dp),
                     maxLines = 2,
@@ -162,7 +162,7 @@ fun SettingsDialog(
                 SettingsPill("📂", Term.orange) { onPickFolder() }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ── Tlacitka ──
             Row(
@@ -171,8 +171,8 @@ fun SettingsDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SettingsPill("Zrušit", Term.textDim) { onDismiss() }
-                Spacer(modifier = Modifier.width(10.dp))
-                val shape = RoundedCornerShape(12.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                val shape = RoundedCornerShape(DS.buttonRadius)
                 Text(
                     text = "Uložit",
                     color = Term.bg,
@@ -224,7 +224,7 @@ private fun SettingsInput(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(DS.inputRadius))
                     .background(Term.bg)
                     .padding(12.dp),
             ) {
@@ -256,8 +256,8 @@ private fun SettingsPill(
         fontSize = Term.fontSizeLg,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(DS.buttonRadius))
+            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.buttonRadius))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     )

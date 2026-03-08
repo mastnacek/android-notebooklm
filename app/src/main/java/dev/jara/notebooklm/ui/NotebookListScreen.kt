@@ -115,7 +115,7 @@ fun NotebookListScreen(
                     containerColor = Term.surface,
                     contentColor = Term.text,
                     actionColor = Term.orange,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(DS.snackbarRadius),
                 )
             }
         },
@@ -135,11 +135,11 @@ fun NotebookListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Term.bg)
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(DS.searchRadius))
                         .background(if (semanticMode) Term.purple.copy(alpha = 0.06f) else Term.surfaceLight)
-                        .border(1.dp, modeColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .border(DS.borderWidth, modeColor.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.searchRadius))
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Mode toggle icon — tap to switch
@@ -254,7 +254,7 @@ fun NotebookListScreen(
                     fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold) },
                 text = { Text(displayText, color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize) },
                 containerColor = Term.surface,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(DS.dialogRadius),
             )
         }
 
@@ -264,7 +264,7 @@ fun NotebookListScreen(
                 .fillMaxWidth()
                 .background(Term.surface)
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -274,7 +274,7 @@ fun NotebookListScreen(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "${notebooks.size}",
                 color = Term.bg,
@@ -283,7 +283,7 @@ fun NotebookListScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Term.green.copy(alpha = 0.7f))
+                    .background(Term.green.copy(alpha = 0.6f))
                     .padding(horizontal = 7.dp, vertical = 2.dp),
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -415,7 +415,7 @@ fun NotebookListScreen(
                         fontSize = Term.fontSize,
                         modifier = Modifier.padding(horizontal = 32.dp),
                     )
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ActionPill("＋ Nový", Term.green) { showCreateDialog = true }
                         ActionPill("⟳ Sync", Term.cyan) { onRefresh() }
@@ -506,6 +506,7 @@ fun NotebookListScreen(
 
 @Composable
 private fun ActionPill(text: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(DS.buttonRadius)
     Text(
         text = text,
         color = color,
@@ -513,10 +514,10 @@ private fun ActionPill(text: String, color: androidx.compose.ui.graphics.Color, 
         fontSize = Term.fontSizeLg,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.5.dp, color.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .clip(shape)
+            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }
 
@@ -573,12 +574,12 @@ private fun NotebookCard(
     onLongClick: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    val bgColor = if (isSelected) Term.cyan.copy(alpha = 0.12f) else Term.surfaceLight
+    val shape = RoundedCornerShape(DS.cardRadius)
+    val bgColor = if (isSelected) Term.cyan.copy(alpha = DS.selectionAlpha) else Term.surfaceLight
     val borderMod = if (isSelected) {
-        Modifier.border(1.5.dp, Term.cyan.copy(alpha = 0.4f), shape)
+        Modifier.border(DS.borderWidthSelected, Term.cyan.copy(alpha = DS.borderAlpha), shape)
     } else {
-        Modifier.border(1.dp, Term.border.copy(alpha = 0.3f), shape)
+        Modifier.border(DS.borderWidth, Term.border.copy(alpha = DS.borderAlpha), shape)
     }
 
     Row(
@@ -588,7 +589,7 @@ private fun NotebookCard(
             .then(borderMod)
             .background(bgColor)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Selection indicator
@@ -731,8 +732,8 @@ private fun SwipeableNotebookItem(
         backgroundContent = {
             val direction = dismissState.dismissDirection
             val bgColor = when (direction) {
-                SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
-                SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
+                SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = DS.selectionAlpha)
+                SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = DS.selectionAlpha)
                 else -> Color.Transparent
             }
             val icon = when (direction) {
@@ -748,7 +749,7 @@ private fun SwipeableNotebookItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(DS.cardRadius))
                     .background(bgColor)
                     .padding(horizontal = 24.dp),
                 contentAlignment = when (direction) {
@@ -827,7 +828,7 @@ private fun CreateNotebookDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 androidx.compose.foundation.text.BasicTextField(
                     value = emoji,
                     onValueChange = { emoji = it.take(2) },
@@ -848,7 +849,7 @@ private fun CreateNotebookDialog(
             }
         },
         containerColor = Term.surface,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(DS.dialogRadius),
     )
 }
 
@@ -878,7 +879,7 @@ private fun ShimmerCard() {
         initialValue = 0f,
         targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            animation = tween(durationMillis = DS.shimmerDurationMs, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "shimmer_translate",
@@ -892,16 +893,16 @@ private fun ShimmerCard() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(DS.cardRadius))
             .background(Term.surfaceLight)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Emoji placeholder
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(DS.chipRadius))
                 .background(brush),
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -962,7 +963,7 @@ private fun BottomActionBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Term.surface)
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -40,6 +40,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import dev.jara.notebooklm.rpc.NotebookLmApi
 
@@ -79,7 +80,7 @@ fun NotebookDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Term.surface)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
             Text(
@@ -103,15 +104,25 @@ fun NotebookDetailScreen(
         }
 
         if (detail.loading) {
-            val infiniteTransition = rememberInfiniteTransition(label = "detail_loading")
-            val alpha by infiniteTransition.animateFloat(
-                initialValue = 0.3f,
-                targetValue = 0.7f,
+            val shimmerColors = listOf(
+                Term.surfaceLight.copy(alpha = 0.3f),
+                Term.surfaceLight.copy(alpha = 0.6f),
+                Term.surfaceLight.copy(alpha = 0.3f),
+            )
+            val transition = rememberInfiniteTransition(label = "detail_shimmer")
+            val translateAnim by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1000f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(1000),
-                    repeatMode = RepeatMode.Reverse,
+                    animation = tween(durationMillis = DS.shimmerDurationMs, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart,
                 ),
-                label = "detail_shimmer",
+                label = "detail_shimmer_translate",
+            )
+            val brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = shimmerColors,
+                start = androidx.compose.ui.geometry.Offset(translateAnim - 200f, 0f),
+                end = androidx.compose.ui.geometry.Offset(translateAnim, 0f),
             )
             Column(
                 modifier = Modifier
@@ -120,14 +131,13 @@ fun NotebookDetailScreen(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Skeleton karty napodobující obsah
                 repeat(4) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(if (it == 0) 100.dp else 60.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Term.surfaceLight.copy(alpha = alpha)),
+                            .clip(RoundedCornerShape(DS.cardRadius))
+                            .background(brush),
                     )
                 }
             }
@@ -172,7 +182,7 @@ fun NotebookDetailScreen(
                     DetailTab.ARTIFACTS -> "🎨 ${detail.artifacts.size}" to Term.purple
                     DetailTab.NOTES -> "📝 ${detail.notes.size}" to Term.orange
                 }
-                val shape = RoundedCornerShape(10.dp)
+                val shape = RoundedCornerShape(DS.buttonRadius)
                 Text(
                     text = label,
                     color = if (selected) color else Term.textDim,
@@ -183,8 +193,8 @@ fun NotebookDetailScreen(
                         .clip(shape)
                         .then(
                             if (selected) Modifier
-                                .background(color.copy(alpha = 0.12f))
-                                .border(1.dp, color.copy(alpha = 0.3f), shape)
+                                .background(color.copy(alpha = DS.selectionAlpha))
+                                .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
                             else Modifier
                         )
                         .clickable { onTabSwitch(tab) }
@@ -243,22 +253,33 @@ private fun ChatTab(
             if (detail.chatAnswering) {
                 item {
                     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
-                    val alpha by infiniteTransition.animateFloat(
-                        initialValue = 0.3f,
+                    val cursorAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0f,
                         targetValue = 1f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(800),
+                            animation = tween(500),
                             repeatMode = RepeatMode.Reverse,
                         ),
-                        label = "thinking_alpha",
+                        label = "cursor_blink",
                     )
-                    Text(
-                        text = "Přemýšlím...",
-                        color = Term.orange.copy(alpha = alpha),
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
+                    Row(
                         modifier = Modifier.padding(vertical = 8.dp),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Přemýšlím",
+                            color = Term.orange,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        )
+                        Text(
+                            text = " │",
+                            color = Term.green.copy(alpha = cursorAlpha),
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
         }
@@ -268,10 +289,10 @@ private fun ChatTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(DS.searchRadius))
                 .background(Term.surfaceLight)
-                .border(1.dp, Term.green.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .border(DS.borderWidth, Term.green.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.searchRadius))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
@@ -398,7 +419,7 @@ private fun ChatBubble(
 
         // Bublina
         val bubbleBg = if (isUser) Term.surfaceLight else Term.surface.copy(alpha = 0.7f)
-        val bubbleBorder = if (isUser) Term.cyan.copy(alpha = 0.15f) else Term.green.copy(alpha = 0.2f)
+        val bubbleBorder = if (isUser) Term.cyan.copy(alpha = DS.borderAlpha) else Term.green.copy(alpha = DS.borderAlpha)
         Box(
             modifier = Modifier
                 .fillMaxWidth(if (isUser) 0.85f else 0.92f)
@@ -463,7 +484,7 @@ private fun SourcesTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 32.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(DS.dialogRadius))
                     .background(Term.surface)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -551,7 +572,7 @@ private fun SourcesTab(
                     fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
             },
             containerColor = Term.surface,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(DS.dialogRadius),
         )
     }
 
@@ -639,7 +660,7 @@ private fun SourcesTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Term.surface)
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -662,7 +683,7 @@ private fun SourcesTab(
             containerColor = Term.surface,
             contentColor = Term.text,
             actionColor = Term.orange,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(DS.snackbarRadius),
         )
     }
     } // Box
@@ -684,8 +705,8 @@ private fun SelectableSourceCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (selected) Term.green.copy(alpha = 0.1f) else Term.surface)
-            .border(1.5.dp, borderColor, shape)
+            .background(if (selected) Term.green.copy(alpha = DS.selectionAlpha) else Term.surface)
+            .border(DS.borderWidthSelected, borderColor, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -731,11 +752,16 @@ private fun SwipeToDismissSourceCard(
                     triggered = true
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     scope.launch {
+                        val job = launch {
+                            delay(5000)
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                        }
                         val result = snackbarHostState.showSnackbar(
                             message = "Smazat: ${src.title.take(25)}",
                             actionLabel = "Zpět",
-                            duration = SnackbarDuration.Long,
+                            duration = SnackbarDuration.Indefinite,
                         )
+                        job.cancel()
                         if (result != SnackbarResult.ActionPerformed) {
                             onDeleteSource(src.id)
                         }
@@ -834,7 +860,7 @@ private fun AddSourceDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(DS.dialogRadius))
                 .background(Term.surface)
                 .padding(24.dp),
         ) {
@@ -845,13 +871,13 @@ private fun AddSourceDialog(
                 fontSize = Term.fontSizeXl,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Typ
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((type, label) in listOf("url" to "🌐 Web", "youtube" to "🎥 YT", "text" to "📝 Text")) {
                     val selected = selectedType == type
-                    val shape = RoundedCornerShape(12.dp)
+                    val shape = RoundedCornerShape(DS.buttonRadius)
                     Text(
                         text = label,
                         color = if (selected) Term.green else Term.textDim,
@@ -862,8 +888,8 @@ private fun AddSourceDialog(
                             .clip(shape)
                             .then(
                                 if (selected) Modifier
-                                    .background(Term.green.copy(alpha = 0.15f))
-                                    .border(1.5.dp, Term.green.copy(alpha = 0.5f), shape)
+                                    .background(Term.green.copy(alpha = DS.selectionAlpha))
+                                    .border(DS.borderWidthSelected, Term.green.copy(alpha = DS.borderAlpha), shape)
                                 else Modifier.background(Term.bg)
                             )
                             .clickable { selectedType = type }
@@ -871,7 +897,7 @@ private fun AddSourceDialog(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (selectedType == "text") {
                 DetailInput(
@@ -895,7 +921,7 @@ private fun AddSourceDialog(
                 maxLines = if (selectedType == "text") 6 else 1,
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -903,7 +929,7 @@ private fun AddSourceDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DetailPill("Zrušit", Term.textDim) { onDismiss() }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 DetailPill("Přidat", Term.green) {
                     if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
                 }
@@ -986,7 +1012,7 @@ private fun ArtifactsTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Term.surface)
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1007,7 +1033,7 @@ private fun ArtifactsTab(
                 containerColor = Term.surface,
                 contentColor = Term.text,
                 actionColor = Term.orange,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(DS.snackbarRadius),
             )
         }
     } // Box
@@ -1039,7 +1065,7 @@ private fun GenerateArtifactPanel(
             .fillMaxWidth()
             .clip(shape)
             .background(Term.surface)
-            .border(1.dp, Term.purple.copy(alpha = 0.2f), shape)
+            .border(DS.borderWidth, Term.purple.copy(alpha = DS.borderAlpha), shape)
             .padding(14.dp),
     ) {
         if (selectedType == null) {
@@ -1056,7 +1082,7 @@ private fun GenerateArtifactPanel(
                 ) {
                     for (type in row) {
                         val icon = generateTypeIcon(type)
-                        val btnShape = RoundedCornerShape(10.dp)
+                        val btnShape = RoundedCornerShape(DS.buttonRadius)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -1200,7 +1226,7 @@ private fun OptionRow(label: String, content: @Composable () -> Unit) {
 
 @Composable
 private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val chipShape = RoundedCornerShape(8.dp)
+    val chipShape = RoundedCornerShape(DS.chipRadius)
     Text(
         text = label,
         color = if (selected) Term.green else Term.textDim,
@@ -1211,8 +1237,8 @@ private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(chipShape)
             .then(
                 if (selected) Modifier
-                    .background(Term.green.copy(alpha = 0.12f))
-                    .border(1.dp, Term.green.copy(alpha = 0.3f), chipShape)
+                    .background(Term.green.copy(alpha = DS.selectionAlpha))
+                    .border(DS.borderWidth, Term.green.copy(alpha = DS.borderAlpha), chipShape)
                 else Modifier.background(Term.bg)
             )
             .clickable(onClick = onClick)
@@ -1249,11 +1275,16 @@ private fun SwipeToDismissArtifactCard(
                     triggered = true
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     scope.launch {
+                        val job = launch {
+                            delay(5000)
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                        }
                         val result = snackbarHostState.showSnackbar(
                             message = "Smazat: ${art.title.take(25)}",
                             actionLabel = "Zpět",
-                            duration = SnackbarDuration.Long,
+                            duration = SnackbarDuration.Indefinite,
                         )
+                        job.cancel()
                         if (result != SnackbarResult.ActionPerformed) {
                             onDeleteArtifact(art.id)
                         }
@@ -1494,7 +1525,7 @@ private fun SwipeToDismissNoteCard(
                     fontFamily = Term.font, fontSize = Term.fontSize)
             },
             containerColor = Term.surface,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(DS.dialogRadius),
         )
     }
 
@@ -1594,7 +1625,7 @@ private fun DetailPill(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(DS.buttonRadius)
     val isSingleChar = text.codePointCount(0, text.length) == 1
     Text(
         text = text,
@@ -1605,7 +1636,7 @@ private fun DetailPill(
         textAlign = if (isSingleChar) androidx.compose.ui.text.style.TextAlign.Center else null,
         modifier = modifier
             .clip(shape)
-            .border(1.dp, color.copy(alpha = 0.3f), shape)
+            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
             .clickable(onClick = onClick)
             .then(
                 if (isSingleChar) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 34.dp)
@@ -1623,7 +1654,7 @@ private fun IconMicroAction(icon: androidx.compose.ui.graphics.vector.ImageVecto
         tint = color,
         modifier = Modifier
             .size(20.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(DS.microRadius))
             .clickable(onClick = onClick)
             .padding(2.dp),
     )
@@ -1631,7 +1662,7 @@ private fun IconMicroAction(icon: androidx.compose.ui.graphics.vector.ImageVecto
 
 @Composable
 private fun IconPill(icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(DS.buttonRadius)
     Icon(
         imageVector = icon,
         contentDescription = null,
@@ -1639,7 +1670,7 @@ private fun IconPill(icon: androidx.compose.ui.graphics.vector.ImageVector, colo
         modifier = Modifier
             .size(30.dp)
             .clip(shape)
-            .border(1.dp, color.copy(alpha = 0.3f), shape)
+            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
             .clickable(onClick = onClick)
             .padding(5.dp),
     )
@@ -1652,7 +1683,7 @@ private fun MicroAction(icon: String, color: Color, onClick: () -> Unit) {
         color = color,
         fontSize = 14.sp,
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(DS.microRadius))
             .clickable(onClick = onClick)
             .padding(horizontal = 5.dp, vertical = 3.dp),
     )
@@ -1681,7 +1712,7 @@ private fun DetailInput(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(DS.inputRadius))
                     .background(Term.bg)
                     .padding(12.dp),
             ) {

@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -202,6 +204,31 @@ fun NotebookLmTheme(
 // ZPETNA KOMPATIBILITA — Term objekt deleguje na aktualni motiv
 // Vsech 283 referenci v UI souborech zustava beze zmeny.
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DESIGN SYSTEM KONSTANTY — standardizovane hodnoty pro konzistentni UI
+// ══════════════════════════════════════════════════════════════════════════════
+
+object DS {
+    // Corner radii
+    val cardRadius = 14.dp
+    val buttonRadius = 10.dp
+    val dialogRadius = 16.dp
+    val chipRadius = 8.dp
+    val microRadius = 6.dp
+    val inputRadius = 10.dp
+    val searchRadius = 16.dp
+    val snackbarRadius = 12.dp
+
+    // Border
+    const val borderAlpha = 0.3f
+    const val selectionAlpha = 0.12f
+    val borderWidth = 1.dp
+    val borderWidthSelected = 1.5.dp
+
+    // Shimmer
+    const val shimmerDurationMs = 1000
+}
 
 object Term {
     val bg: Color @Composable get() = LocalAppColors.current.bg
