@@ -91,3 +91,24 @@ data class NotebookFacets(
     val domain: String = "",
     val freshness: String = "",
 )
+
+/** Aktivní filtry — každý facet může mít vybrané hodnoty (AND mezi facetami) */
+data class FacetFilter(
+    val topics: Set<String> = emptySet(),
+    val formats: Set<String> = emptySet(),
+    val purposes: Set<String> = emptySet(),
+    val domains: Set<String> = emptySet(),
+    val freshnesses: Set<String> = emptySet(),
+) {
+    val activeCount: Int get() = listOf(topics, formats, purposes, domains, freshnesses).count { it.isNotEmpty() }
+    val isEmpty: Boolean get() = activeCount == 0
+
+    fun matches(facets: NotebookFacets): Boolean {
+        if (topics.isNotEmpty() && facets.topic !in topics) return false
+        if (formats.isNotEmpty() && facets.format !in formats) return false
+        if (purposes.isNotEmpty() && facets.purpose !in purposes) return false
+        if (domains.isNotEmpty() && facets.domain !in domains) return false
+        if (freshnesses.isNotEmpty() && facets.freshness !in freshnesses) return false
+        return true
+    }
+}

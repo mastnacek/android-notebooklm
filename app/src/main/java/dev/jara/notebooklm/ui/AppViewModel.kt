@@ -73,6 +73,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     internal val _facets = MutableStateFlow<Map<String, NotebookFacets>>(emptyMap())
     val facets: StateFlow<Map<String, NotebookFacets>> get() = _facets
 
+    private val _facetFilter = MutableStateFlow(FacetFilter())
+    val facetFilter: StateFlow<FacetFilter> get() = _facetFilter
+
+    fun setFacetFilter(filter: FacetFilter) { _facetFilter.value = filter }
+    fun clearFacetFilter() { _facetFilter.value = FacetFilter() }
+
     internal val _screen = MutableStateFlow<Screen>(
         if (authManager.isLoggedIn()) Screen.NotebookList else Screen.Login
     )
