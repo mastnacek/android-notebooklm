@@ -210,7 +210,6 @@ Odpovez POUZE platnym JSON polem:
                         )
                         embeddingDb.upsertFacets(id, facets)
                         allResults[id] = facets.topic
-                        catPrefs.edit().putString(id, facets.topic).apply()
                         // Pridej do znamych hodnot pro dalsi batche
                         if (facets.topic.isNotEmpty()) knownTopics.add(facets.topic)
                         if (facets.format.isNotEmpty()) knownFormats.add(facets.format)

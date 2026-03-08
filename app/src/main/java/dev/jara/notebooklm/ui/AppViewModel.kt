@@ -66,7 +66,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     internal val _classify = MutableStateFlow(ClassificationState())
     val classify: StateFlow<ClassificationState> get() = _classify
 
-    // Kategorie notebooku (persisted v SharedPreferences)
+    // Kategorie notebooku — catPrefs jen pro čtení při migraci ze starší verze
     internal val catPrefs = app.getSharedPreferences("categories", Context.MODE_PRIVATE)
     internal val _categories = MutableStateFlow<Map<String, String>>(emptyMap())
 
@@ -106,30 +106,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         // Nacti oblibene z prefs
         _favorites.value = favPrefs.getStringSet("fav_ids", emptySet()) ?: emptySet()
-        // Nacti kategorie (normalizuj case)
-        val rawCats = catPrefs.all.mapNotNull { (k, v) ->
-            if (v is String) k to v.trim().lowercase().replaceFirstChar { it.uppercase() } else null
-        }.toMap()
-        _categories.value = rawCats
-        // Oprav data v prefs pokud se lisi
-        val editor = catPrefs.edit()
-        for ((k, normalized) in rawCats) {
-            val original = catPrefs.getString(k, null)
-            if (original != null && original != normalized) {
-                editor.putString(k, normalized)
-            }
-        }
-        editor.apply()
-        // Migrace kategorií do notebook_facets (jednorázově)
+        // Migrace kategorií z catPrefs do notebook_facets (jednorázově, pro upgrade ze starší verze)
         if (!prefs.getBoolean("facets_migrated", false)) {
+            val rawCats = catPrefs.all.mapNotNull { (k, v) ->
+                if (v is String) k to v.trim().lowercase().replaceFirstChar { it.uppercase() } else null
+            }.toMap()
             for ((id, cat) in rawCats) {
                 embeddingDb.upsertFacets(id, NotebookFacets(topic = cat))
             }
             prefs.edit().putBoolean("facets_migrated", true).apply()
         }
-        // Načti facety z DB
+        // Načti facety z DB — jediný zdroj pravdy pro kategorie
         _facets.value = embeddingDb.getAllFacets()
-        // Categories z facet topic (zpětná kompatibilita)
         _categories.value = _facets.value.mapValues { it.value.topic }.filterValues { it.isNotEmpty() }
         if (authManager.isLoggedIn()) {
             loadNotebooks()
