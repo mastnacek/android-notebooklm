@@ -77,7 +77,7 @@ fun NotebookDetailScreen(
             .windowInsetsPadding(WindowInsets.navigationBars)
             .imePadding()
     ) {
-        // ── Header s marquee (bezici pas) efektem ──
+        // ── Header s marquee efektem — scroll doprava, pauza, navrat, tri tecky ──
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -87,32 +87,76 @@ fun NotebookDetailScreen(
             val fullTitle = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} ${notebook.title}" else notebook.title
             var marqueeTriger by remember { mutableIntStateOf(0) }
             val scrollState = rememberScrollState()
+            var isOverflowing by remember { mutableStateOf(false) }
+            var animationDone by remember { mutableStateOf(false) }
 
-            // Marquee animace — plynule projede cely nazev a zastavi se
+            // Marquee animace — projede nazev, pauza, navrat na zacatek
             LaunchedEffect(fullTitle, marqueeTriger) {
+                animationDone = false
                 scrollState.scrollTo(0)
-                delay(400) // kratka pauza pred startem
-                scrollState.animateScrollTo(
-                    scrollState.maxValue,
-                    animationSpec = tween(
-                        durationMillis = (fullTitle.length * 50).coerceIn(800, 4000),
-                        easing = LinearEasing,
-                    ),
-                )
+                // Pockej nez se layout spocita maxValue
+                delay(100)
+                isOverflowing = scrollState.maxValue > 0
+                if (isOverflowing) {
+                    delay(300) // kratka pauza pred startem
+                    scrollState.animateScrollTo(
+                        scrollState.maxValue,
+                        animationSpec = tween(
+                            durationMillis = (fullTitle.length * 50).coerceIn(800, 4000),
+                            easing = LinearEasing,
+                        ),
+                    )
+                    delay(600) // pauza na konci
+                    scrollState.animateScrollTo(
+                        0,
+                        animationSpec = tween(
+                            durationMillis = 400,
+                            easing = FastOutSlowInEasing,
+                        ),
+                    )
+                }
+                animationDone = true
             }
 
-            Text(
-                text = fullTitle,
-                color = Term.white,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier
-                    .horizontalScroll(scrollState)
-                    .clickable { marqueeTriger++ },
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = fullTitle,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .horizontalScroll(scrollState)
+                        .clickable { marqueeTriger++ },
+                )
+                // Fade + "..." indikator pokud nazev preteka a animace dobehla
+                if (isOverflowing && animationDone) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .width(48.dp)
+                            .fillMaxHeight()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, Term.surface),
+                                ),
+                            ),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Text(
+                            text = "…",
+                            color = Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSizeLg,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
         }
 
         // Audio player bar
