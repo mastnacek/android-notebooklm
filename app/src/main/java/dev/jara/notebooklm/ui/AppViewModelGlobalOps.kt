@@ -119,8 +119,12 @@ fun AppViewModel.startClassification(ids: Set<String>? = null) {
 
     viewModelScope.launch {
         try {
-            // Aktualizovany set kategorii — roste s kazdym batchem
-            val knownCats = _categories.value.values.distinct().toMutableSet()
+            // Aktualizovane sety facet — rostou s kazdym batchem
+            val knownTopics = embeddingDb.getDistinctFacetValues("topic").toMutableSet()
+            val knownFormats = embeddingDb.getDistinctFacetValues("format").toMutableSet()
+            val knownPurposes = embeddingDb.getDistinctFacetValues("purpose").toMutableSet()
+            val knownDomains = embeddingDb.getDistinctFacetValues("domain").toMutableSet()
+            val knownFreshness = embeddingDb.getDistinctFacetValues("freshness").toMutableSet()
             val allResults = mutableMapOf<String, String>()
 
             // Zpracuj po batchich po 10
@@ -135,33 +139,32 @@ fun AppViewModel.startClassification(ids: Set<String>? = null) {
                     "${i + 1}. [${nb.id}] $prefix${nb.title}"
                 }.joinToString("\n")
 
-                val sortedCats = knownCats.sorted()
-                val catsContext = if (sortedCats.isEmpty())
-                    "Zatim zadne kategorie neexistuji — vytvor nove."
-                else
-                    "Existujici kategorie (MUSIS pouzit PRESNE tyto nazvy, zadne varianty): ${sortedCats.joinToString(", ")}"
-
                 val prompt = """
-Jsi organizacni asistent. Prirad kazdemu notebooku jednu kategorii.
+Jsi organizacni asistent. Prirad kazdemu notebooku 5 facet (PMEST model).
+
+FACETY:
+1. topic — Obecne tema (max 2 slova, cesky): Programovani, Ai nastroje, Finance, Design...
+2. format — Typ obsahu: Tutorial, Reference, Poznamky, Vyzkum, Projekt, Clanek, Kurz
+3. purpose — Ucel: Uceni, Projekt, Archiv, Inspirace, Prace, Osobni
+4. domain — Konkretni oblast/technologie: Android, Python, Web, Hardware, Obecne...
+5. freshness — Aktuálnost: Aktivni, Archivni, Sezonni
 
 PRAVIDLA:
-1. Kategorie je MAXIMALNE 2 slova, cesky, strucne, lowercase (prvni pismeno velke)
-2. Kategorie MUSI byt OBECNE — zastresujici temata, ne konkretni nastroje nebo produkty
-   SPATNE: "Claude Code", "Gemini agent", "React hooks", "Python scripty"
-   SPRAVNE: "Programovani", "Ai nastroje", "Webovy vyvoj", "Automatizace"
-3. KONZISTENCE: Pokud dva notebooky patri do stejne oblasti, MUSI mit STEJNOU kategorii
-   Napr. notebook o Claude a notebook o Gemini → oba "Ai nastroje", NE dve ruzne kategorie
-4. MUSIS pouzit existujici kategorie pokud jen trochu sedi — novou vytvor JEN kdyz ZADNA existujici nesedi
-5. Cil je 5-15 kategorii celkem pro VSECHNY notebooky, ne unikatni kategorie pro kazdy
-6. Mysli v urovni "police v knihovne" — obecne tema, ne konkretni kniha
-
-$catsContext
+1. Hodnoty MAXIMALNE 2 slova, cesky, lowercase (prvni pismeno velke)
+2. KONZISTENCE — pouzij existujici hodnoty pokud sedi:
+   topic: ${knownTopics.sorted().joinToString(", ").ifEmpty { "(zatim zadne)" }}
+   format: ${knownFormats.sorted().joinToString(", ").ifEmpty { "(zatim zadne)" }}
+   purpose: ${knownPurposes.sorted().joinToString(", ").ifEmpty { "(zatim zadne)" }}
+   domain: ${knownDomains.sorted().joinToString(", ").ifEmpty { "(zatim zadne)" }}
+   freshness: ${knownFreshness.sorted().joinToString(", ").ifEmpty { "(zatim zadne)" }}
+3. Novou hodnotu vytvor JEN kdyz ZADNA existujici nesedi
+4. Cil je 5-15 hodnot per facet, ne unikatni pro kazdy notebook
 
 NOTEBOOKY:
 $nbLines
 
-Odpovez POUZE platnym JSON polem — zadny jiny text:
-[{"id": "notebook_id", "category": "kategorie"}]
+Odpovez POUZE platnym JSON polem:
+[{"id": "notebook_id", "topic": "...", "format": "...", "purpose": "...", "domain": "...", "freshness": "..."}]
 """.trim()
 
                 val response = httpClient.post("https://openrouter.ai/api/v1/chat/completions") {
@@ -195,14 +198,25 @@ Odpovez POUZE platnym JSON polem — zadny jiny text:
                 try {
                     val arr = Json.parseToJsonElement(clean).jsonArray
                     for (item in arr) {
-                        val id = item.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: continue
-                        val cat = item.jsonObject["category"]?.jsonPrimitive?.contentOrNull ?: continue
-                        // Normalizuj — lowercase + first uppercase
-                        val normalized = cat.trim().lowercase().replaceFirstChar { it.uppercase() }
-                        allResults[id] = normalized
-                        catPrefs.edit().putString(id, normalized).apply()
-                        // Pridej do znamych kategorii pro dalsi batche
-                        knownCats.add(normalized)
+                        val obj = item.jsonObject
+                        val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: continue
+                        val normalize = { s: String? -> s?.trim()?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "" }
+                        val facets = NotebookFacets(
+                            topic = normalize(obj["topic"]?.jsonPrimitive?.contentOrNull),
+                            format = normalize(obj["format"]?.jsonPrimitive?.contentOrNull),
+                            purpose = normalize(obj["purpose"]?.jsonPrimitive?.contentOrNull),
+                            domain = normalize(obj["domain"]?.jsonPrimitive?.contentOrNull),
+                            freshness = normalize(obj["freshness"]?.jsonPrimitive?.contentOrNull),
+                        )
+                        embeddingDb.upsertFacets(id, facets)
+                        allResults[id] = facets.topic
+                        catPrefs.edit().putString(id, facets.topic).apply()
+                        // Pridej do znamych hodnot pro dalsi batche
+                        if (facets.topic.isNotEmpty()) knownTopics.add(facets.topic)
+                        if (facets.format.isNotEmpty()) knownFormats.add(facets.format)
+                        if (facets.purpose.isNotEmpty()) knownPurposes.add(facets.purpose)
+                        if (facets.domain.isNotEmpty()) knownDomains.add(facets.domain)
+                        if (facets.freshness.isNotEmpty()) knownFreshness.add(facets.freshness)
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "classify parse: ${e.message}, raw=$clean")
@@ -211,9 +225,9 @@ Odpovez POUZE platnym JSON polem — zadny jiny text:
                 _classify.value = _classify.value.copy(results = allResults.toMap())
             }
 
-            _categories.value = catPrefs.all.mapNotNull { (k, v) ->
-                if (v is String) k to v else null
-            }.toMap()
+            // Aktualizuj facety a zpetne kompatibilni kategorie
+            _facets.value = embeddingDb.getAllFacets()
+            _categories.value = _facets.value.mapValues { it.value.topic }.filterValues { it.isNotEmpty() }
 
             _classify.value = ClassificationState(
                 done = true,
