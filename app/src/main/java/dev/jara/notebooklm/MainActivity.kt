@@ -8,6 +8,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModelProvider
 import dev.jara.notebooklm.auth.LoginActivity
@@ -86,60 +93,79 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            when (val s = screen) {
-                is Screen.Login -> LoginScreen(
-                    onLogin = {
-                        loginLauncher.launch(Intent(this, LoginActivity::class.java))
-                    },
-                    error = error,
-                )
+            AnimatedContent(
+                targetState = screen,
+                transitionSpec = {
+                    if (targetState is Screen.NotebookDetail) {
+                        // List -> Detail: slide in from right
+                        slideInHorizontally { it / 3 } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally { -it / 3 } + fadeOut(tween(200))
+                    } else if (initialState is Screen.NotebookDetail) {
+                        // Detail -> List: slide in from left
+                        slideInHorizontally { -it / 3 } + fadeIn(tween(300)) togetherWith
+                            slideOutHorizontally { it / 3 } + fadeOut(tween(200))
+                    } else {
+                        // Default: crossfade
+                        fadeIn(tween(300)) togetherWith fadeOut(tween(200))
+                    }
+                },
+                label = "screen_transition",
+            ) { targetScreen ->
+                when (val s = targetScreen) {
+                    is Screen.Login -> LoginScreen(
+                        onLogin = {
+                            loginLauncher.launch(Intent(this@MainActivity, LoginActivity::class.java))
+                        },
+                        error = error,
+                    )
 
-                is Screen.NotebookList -> NotebookListScreen(
-                    notebooks = viewModel.sortedNotebooks(notebooks),
-                    loading = loading,
-                    semanticResults = semanticResults,
-                    searchLoading = searchLoading,
-                    embeddingStatus = embeddingStatus,
-                    hasApiKey = viewModel.hasApiKey(),
-                    favorites = favorites,
-                    sortMode = sortMode,
-                    onNotebookClick = { viewModel.openNotebook(it) },
-                    onRefresh = { viewModel.loadNotebooks() },
-                    onLogout = { viewModel.logout() },
-                    onSemanticSearch = { viewModel.semanticSearch(it) },
-                    onClearSemantic = { viewModel.clearSemanticResults() },
-                    onEmbedNotebooks = { ids -> viewModel.embedNotebooks(ids) },
-                    onSettings = { showSettings = true },
-                    onToggleFavorite = { viewModel.toggleFavorite(it) },
-                    onCycleSort = { viewModel.cycleSort() },
-                    dedup = dedupState,
-                    onStartDedup = { viewModel.startDeduplication() },
-                    onDismissDedup = { viewModel.dismissDedup() },
-                    classify = classifyState,
-                    categories = categories,
-                    onStartClassify = { viewModel.startClassification() },
-                    onClassifySelected = { ids -> viewModel.startClassification(ids) },
-                    onDismissClassify = { viewModel.dismissClassify() },
-                    onCreateNotebook = { title, emoji -> viewModel.createNotebook(title, emoji) },
-                    onDeleteNotebook = { viewModel.deleteNotebook(it) },
-                )
+                    is Screen.NotebookList -> NotebookListScreen(
+                        notebooks = viewModel.sortedNotebooks(notebooks),
+                        loading = loading,
+                        semanticResults = semanticResults,
+                        searchLoading = searchLoading,
+                        embeddingStatus = embeddingStatus,
+                        hasApiKey = viewModel.hasApiKey(),
+                        favorites = favorites,
+                        sortMode = sortMode,
+                        onNotebookClick = { viewModel.openNotebook(it) },
+                        onRefresh = { viewModel.loadNotebooks() },
+                        onLogout = { viewModel.logout() },
+                        onSemanticSearch = { viewModel.semanticSearch(it) },
+                        onClearSemantic = { viewModel.clearSemanticResults() },
+                        onEmbedNotebooks = { ids -> viewModel.embedNotebooks(ids) },
+                        onSettings = { showSettings = true },
+                        onToggleFavorite = { viewModel.toggleFavorite(it) },
+                        onCycleSort = { viewModel.cycleSort() },
+                        dedup = dedupState,
+                        onStartDedup = { viewModel.startDeduplication() },
+                        onDismissDedup = { viewModel.dismissDedup() },
+                        classify = classifyState,
+                        categories = categories,
+                        onStartClassify = { viewModel.startClassification() },
+                        onClassifySelected = { ids -> viewModel.startClassification(ids) },
+                        onDismissClassify = { viewModel.dismissClassify() },
+                        onCreateNotebook = { title, emoji -> viewModel.createNotebook(title, emoji) },
+                        onDeleteNotebook = { viewModel.deleteNotebook(it) },
+                    )
 
-                is Screen.NotebookDetail -> NotebookDetailScreen(
-                    notebook = s.notebook,
-                    detail = detail,
-                    onBack = { viewModel.goBack() },
-                    onTabSwitch = { viewModel.switchTab(it) },
-                    onSendChat = { viewModel.sendChat(it) },
-                    onSaveAsNote = { viewModel.saveAsNote(it) },
-                    onPlayAudio = { url, title -> viewModel.playAudio(url, title) },
-                    onStopAudio = { viewModel.stopAudio() },
-                    onDownloadAudio = { art -> viewModel.downloadArtifact(art) },
-                    onAddSource = { type, value, title -> viewModel.addSource(type, value, title) },
-                    onDeleteSource = { viewModel.deleteSource(it) },
-                    onGenerateArtifact = { type, opts -> viewModel.generateArtifact(type, opts) },
-                    onOpenInteractiveHtml = { viewModel.openInteractiveHtml(it) },
-                    onDeleteNote = { viewModel.deleteNote(it) },
-                )
+                    is Screen.NotebookDetail -> NotebookDetailScreen(
+                        notebook = s.notebook,
+                        detail = detail,
+                        onBack = { viewModel.goBack() },
+                        onTabSwitch = { viewModel.switchTab(it) },
+                        onSendChat = { viewModel.sendChat(it) },
+                        onSaveAsNote = { viewModel.saveAsNote(it) },
+                        onPlayAudio = { url, title -> viewModel.playAudio(url, title) },
+                        onStopAudio = { viewModel.stopAudio() },
+                        onDownloadAudio = { art -> viewModel.downloadArtifact(art) },
+                        onAddSource = { type, value, title -> viewModel.addSource(type, value, title) },
+                        onDeleteSource = { viewModel.deleteSource(it) },
+                        onGenerateArtifact = { type, opts -> viewModel.generateArtifact(type, opts) },
+                        onOpenInteractiveHtml = { viewModel.openInteractiveHtml(it) },
+                        onDeleteNote = { viewModel.deleteNote(it) },
+                    )
+                }
             }
             } // NotebookLmTheme
         }

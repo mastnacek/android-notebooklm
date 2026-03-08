@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -15,11 +16,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +72,7 @@ fun NotebookListScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Term.bg)
-            .windowInsetsPadding(WindowInsets.systemBars)
+            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         // Selection mode
         var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -100,12 +109,11 @@ fun NotebookListScreen(
         }
 
         // ── Header ──
-        var menuExpanded by remember { mutableStateOf(false) }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Term.surface)
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -114,82 +122,7 @@ fun NotebookListScreen(
                 fontFamily = Term.font,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
             )
-            // Razeni — pill button
-            Text(
-                text = "↕ ${sortMode.label}",
-                color = Term.orange,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Term.surfaceLight)
-                    .clickable { onCycleSort() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            // Novy notebook — pill
-            Text(
-                text = "＋",
-                color = Term.green,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Term.surfaceLight)
-                    .clickable { showCreateDialog = true }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            // Sync — pill button
-            Text(
-                text = "⟳",
-                color = Term.cyan,
-                fontSize = 20.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Term.surfaceLight)
-                    .clickable { onRefresh() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            // Overflow menu
-            Box {
-                Text(
-                    text = "⋮",
-                    color = Term.text,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { menuExpanded = true }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.background(Term.surface),
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Nastavení", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
-                        onClick = { menuExpanded = false; onSettings() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Deduplikace zdrojů", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
-                        onClick = { menuExpanded = false; if (!dedup.running) onStartDedup() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("AI klasifikace", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
-                        onClick = { menuExpanded = false; if (!classify.running) onStartClassify() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Odhlásit", color = Term.red, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
-                        onClick = { menuExpanded = false; onLogout() },
-                    )
-                }
-            }
         }
 
         // ── Selection action bar ──
@@ -264,46 +197,38 @@ fun NotebookListScreen(
             fulltextFiltered
         }
 
-        // Mode toggle
+        // ── Unified search bar ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            SearchModePill("fulltext", !semanticMode, Term.green) {
-                if (semanticMode) { semanticMode = false; onClearSemantic() }
-            }
-            SearchModePill("semantic", semanticMode, Term.purple) {
-                if (!semanticMode) semanticMode = true
-            }
-        }
-
-        // Search input — zaobleny
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(14.dp))
                 .background(Term.surfaceLight)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Mode indicator — kliknutím přepíná fulltext/semantic
             Text(
-                text = if (semanticMode) "? " else "/ ",
-                color = if (semanticMode) Term.purple else Term.green,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.Bold,
+                text = if (semanticMode) "\uD83D\uDD2E" else "\uD83D\uDD0D",
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        semanticMode = !semanticMode
+                        if (!semanticMode) onClearSemantic()
+                    }
+                    .padding(4.dp),
             )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Search input
             BasicTextField(
                 value = query,
                 onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
                 textStyle = TextStyle(
                     color = Term.white,
                     fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
+                    fontSize = Term.fontSize,
                 ),
                 cursorBrush = SolidColor(if (semanticMode) Term.purple else Term.green),
                 singleLine = true,
@@ -318,10 +243,10 @@ fun NotebookListScreen(
                     Box {
                         if (query.isEmpty()) {
                             Text(
-                                text = if (semanticMode) "semantické hledání..." else "filtr sešitů...",
+                                text = if (semanticMode) "sémantické hledání..." else "hledat sešity...",
                                 color = Term.textDim,
                                 fontFamily = Term.font,
-                                fontSize = Term.fontSizeLg,
+                                fontSize = Term.fontSize,
                             )
                         }
                         inner()
@@ -329,20 +254,44 @@ fun NotebookListScreen(
                 },
                 modifier = Modifier.weight(1f),
             )
+
+            // Clear button
             if (query.isNotEmpty()) {
                 Text(
                     text = "✕",
                     color = Term.textDim,
-                    fontSize = Term.fontSizeLg,
+                    fontSize = Term.fontSize,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { query = ""; onClearSemantic() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
+                Spacer(modifier = Modifier.width(4.dp))
             }
+
+            // Sort — kompaktní, jen ikona
+            Text(
+                text = "↕",
+                color = Term.orange,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onCycleSort() }
+                    .padding(4.dp),
+            )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Mode label
+        Text(
+            text = if (semanticMode) "semantic" else "fulltext",
+            color = if (semanticMode) Term.purple else Term.green,
+            fontFamily = Term.font,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 28.dp),
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         // ── Status bary ──
         if (embeddingStatus != null) {
@@ -393,22 +342,33 @@ fun NotebookListScreen(
 
         // ── Obsah ──
         if (loading || searchLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (searchLoading) "Hledám..." else "Načítám sešity...",
-                    color = Term.orange,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                )
-            }
+            SkeletonList(modifier = Modifier.weight(1f))
         } else if (notebooks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "Žádné sešity",
-                    color = Term.textDim,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                )
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "\uD83D\uDCD3", fontSize = 48.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Zatím žádné sešity",
+                        color = Term.white,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSizeLg,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Vytvoř si první sešit nebo synchronizuj z NotebookLM",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionPill("＋ Nový", Term.green) { showCreateDialog = true }
+                        ActionPill("⟳ Sync", Term.cyan) { onRefresh() }
+                    }
+                }
             }
         } else {
             // Pocet
@@ -422,14 +382,14 @@ fun NotebookListScreen(
                 color = Term.textDim,
                 fontFamily = Term.font,
                 fontSize = Term.fontSize,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
 
             // Seznam
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (sortMode == NotebookSort.CATEGORY) {
                     val grouped = displayList
@@ -450,10 +410,146 @@ fun NotebookListScreen(
                         }
                         for (nb in nbs) {
                             item(key = nb.id) {
+                                @OptIn(ExperimentalMaterial3Api::class)
+                                val dismissState = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { value ->
+                                        when (value) {
+                                            SwipeToDismissBoxValue.EndToStart -> {
+                                                onToggleFavorite(nb.id)
+                                                false
+                                            }
+                                            SwipeToDismissBoxValue.StartToEnd -> {
+                                                if (hasApiKey) onEmbedNotebooks(setOf(nb.id))
+                                                false
+                                            }
+                                            SwipeToDismissBoxValue.Settled -> false
+                                        }
+                                    },
+                                )
+
+                                @OptIn(ExperimentalMaterial3Api::class)
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    backgroundContent = {
+                                        val direction = dismissState.dismissDirection
+                                        val bgColor = when (direction) {
+                                            SwipeToDismissBoxValue.EndToStart -> Term.orange.copy(alpha = 0.15f)
+                                            SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
+                                            else -> Color.Transparent
+                                        }
+                                        val icon = when (direction) {
+                                            SwipeToDismissBoxValue.EndToStart -> if (nb.id in favorites) "★→☆" else "☆→★"
+                                            SwipeToDismissBoxValue.StartToEnd -> "Embed"
+                                            else -> ""
+                                        }
+                                        val iconColor = when (direction) {
+                                            SwipeToDismissBoxValue.EndToStart -> Term.orange
+                                            SwipeToDismissBoxValue.StartToEnd -> Term.green
+                                            else -> Term.textDim
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(bgColor)
+                                                .padding(horizontal = 24.dp),
+                                            contentAlignment = when (direction) {
+                                                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                                else -> Alignment.CenterStart
+                                            },
+                                        ) {
+                                            Text(
+                                                text = icon,
+                                                color = iconColor,
+                                                fontFamily = Term.font,
+                                                fontSize = Term.fontSizeLg,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        }
+                                    },
+                                    content = {
+                                        NotebookCard(
+                                            nb = nb,
+                                            isFavorite = nb.id in favorites,
+                                            category = null,
+                                            isSelected = nb.id in selectedIds,
+                                            selectionMode = selectionMode,
+                                            onClick = {
+                                                if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
+                                                else onNotebookClick(nb)
+                                            },
+                                            onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
+                                            onToggleFavorite = { onToggleFavorite(nb.id) },
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    itemsIndexed(displayList) { _, nb ->
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        onToggleFavorite(nb.id)
+                                        false
+                                    }
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        if (hasApiKey) onEmbedNotebooks(setOf(nb.id))
+                                        false
+                                    }
+                                    SwipeToDismissBoxValue.Settled -> false
+                                }
+                            },
+                        )
+
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val direction = dismissState.dismissDirection
+                                val bgColor = when (direction) {
+                                    SwipeToDismissBoxValue.EndToStart -> Term.orange.copy(alpha = 0.15f)
+                                    SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
+                                    else -> Color.Transparent
+                                }
+                                val icon = when (direction) {
+                                    SwipeToDismissBoxValue.EndToStart -> if (nb.id in favorites) "★→☆" else "☆→★"
+                                    SwipeToDismissBoxValue.StartToEnd -> "Embed"
+                                    else -> ""
+                                }
+                                val iconColor = when (direction) {
+                                    SwipeToDismissBoxValue.EndToStart -> Term.orange
+                                    SwipeToDismissBoxValue.StartToEnd -> Term.green
+                                    else -> Term.textDim
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(bgColor)
+                                        .padding(horizontal = 24.dp),
+                                    contentAlignment = when (direction) {
+                                        SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                        else -> Alignment.CenterStart
+                                    },
+                                ) {
+                                    Text(
+                                        text = icon,
+                                        color = iconColor,
+                                        fontFamily = Term.font,
+                                        fontSize = Term.fontSizeLg,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            },
+                            content = {
                                 NotebookCard(
                                     nb = nb,
                                     isFavorite = nb.id in favorites,
-                                    category = null,
+                                    category = categories[nb.id],
                                     isSelected = nb.id in selectedIds,
                                     selectionMode = selectionMode,
                                     onClick = {
@@ -463,28 +559,23 @@ fun NotebookListScreen(
                                     onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
                                     onToggleFavorite = { onToggleFavorite(nb.id) },
                                 )
-                            }
-                        }
-                    }
-                } else {
-                    itemsIndexed(displayList) { _, nb ->
-                        NotebookCard(
-                            nb = nb,
-                            isFavorite = nb.id in favorites,
-                            category = categories[nb.id],
-                            isSelected = nb.id in selectedIds,
-                            selectionMode = selectionMode,
-                            onClick = {
-                                if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
-                                else onNotebookClick(nb)
                             },
-                            onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
-                            onToggleFavorite = { onToggleFavorite(nb.id) },
                         )
                     }
                 }
             }
         }
+
+        // ── Bottom action bar ──
+        BottomActionBar(
+            onCreateNotebook = { showCreateDialog = true },
+            onRefresh = onRefresh,
+            onSettings = onSettings,
+            hasApiKey = hasApiKey,
+            onStartDedup = { if (!dedup.running) onStartDedup() },
+            onStartClassify = { if (!classify.running) onStartClassify() },
+            onLogout = onLogout,
+        )
     }
 }
 
@@ -587,10 +678,12 @@ private fun NotebookCard(
     onToggleFavorite: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    val bgColor = if (isSelected) Term.cyan.copy(alpha = 0.12f) else Term.surface
+    val bgColor = if (isSelected) Term.cyan.copy(alpha = 0.12f) else Term.surfaceLight
     val borderMod = if (isSelected) {
         Modifier.border(1.5.dp, Term.cyan.copy(alpha = 0.4f), shape)
-    } else Modifier
+    } else {
+        Modifier.border(1.dp, Term.border.copy(alpha = 0.3f), shape)
+    }
 
     Row(
         modifier = Modifier
@@ -599,7 +692,7 @@ private fun NotebookCard(
             .then(borderMod)
             .background(bgColor)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Selection indicator
@@ -631,6 +724,7 @@ private fun NotebookCard(
                 fontWeight = FontWeight.SemiBold,
             )
             if (category != null) {
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = category,
                     color = Term.purple,
@@ -742,4 +836,165 @@ private fun fuzzyMatch(haystack: String, query: String): Boolean {
         if (qi < query.length && ch == query[qi]) qi++
     }
     return qi == query.length
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SKELETON SHIMMER LOADING
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Shimmer efekt pro skeleton loading */
+@Composable
+private fun ShimmerCard() {
+    val shimmerColors = listOf(
+        Term.surfaceLight.copy(alpha = 0.3f),
+        Term.surfaceLight.copy(alpha = 0.6f),
+        Term.surfaceLight.copy(alpha = 0.3f),
+    )
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmer_translate",
+    )
+    val brush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset(translateAnim.value - 200f, 0f),
+        end = Offset(translateAnim.value, 0f),
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Term.surfaceLight)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Emoji placeholder
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(brush),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            // Title placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(brush),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // Category placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.4f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(brush),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SkeletonList(modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(8) {
+            ShimmerCard()
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BOTTOM ACTION BAR
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun BottomActionBar(
+    onCreateNotebook: () -> Unit,
+    onRefresh: () -> Unit,
+    onSettings: () -> Unit,
+    hasApiKey: Boolean,
+    onStartDedup: () -> Unit,
+    onStartClassify: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Term.surface)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BottomAction("＋", "Nový", Term.green) { onCreateNotebook() }
+        BottomAction("⟳", "Sync", Term.cyan) { onRefresh() }
+        BottomAction("⚙", "Nastavení", Term.orange) { onSettings() }
+        Box {
+            BottomAction("⋮", "Více", Term.textDim) { menuExpanded = true }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+                modifier = Modifier.background(Term.surface),
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Deduplikace zdrojů", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                    onClick = { menuExpanded = false; onStartDedup() },
+                )
+                DropdownMenuItem(
+                    text = { Text("AI klasifikace", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                    onClick = { menuExpanded = false; onStartClassify() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Odhlásit", color = Term.red, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                    onClick = { menuExpanded = false; onLogout() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomAction(
+    icon: String,
+    label: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = icon,
+            color = color,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = Term.textDim,
+            fontFamily = Term.font,
+            fontSize = 11.sp,
+        )
+    }
 }

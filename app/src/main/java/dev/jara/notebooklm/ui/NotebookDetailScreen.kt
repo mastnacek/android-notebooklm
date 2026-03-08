@@ -5,7 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,62 +62,22 @@ fun NotebookDetailScreen(
             .windowInsetsPadding(WindowInsets.navigationBars)
             .imePadding()
     ) {
-        // ── Header karta ──
-        val headerShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+        // ── Header ──
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(headerShape)
                 .background(Term.surface)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                DetailPill("‹ zpět", Term.cyan) { onBack() }
-                Spacer(modifier = Modifier.width(12.dp))
-                val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
-                Text(
-                    text = "$prefix${notebook.title}",
-                    color = Term.white,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Tab pills — kompaktni, jen ikona + pocet
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (tab in DetailTab.entries) {
-                    val selected = detail.tab == tab
-                    val (label, color) = when (tab) {
-                        DetailTab.CHAT -> "💬" to Term.green
-                        DetailTab.SOURCES -> "📚 ${detail.sources.size}" to Term.cyan
-                        DetailTab.ARTIFACTS -> "🎨 ${detail.artifacts.size}" to Term.purple
-                        DetailTab.NOTES -> "📝 ${detail.notes.size}" to Term.orange
-                    }
-                    val shape = RoundedCornerShape(10.dp)
-                    Text(
-                        text = label,
-                        color = if (selected) color else Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier
-                            .clip(shape)
-                            .then(
-                                if (selected) Modifier
-                                    .background(color.copy(alpha = 0.12f))
-                                    .border(1.dp, color.copy(alpha = 0.3f), shape)
-                                else Modifier
-                            )
-                            .clickable { onTabSwitch(tab) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                    )
-                }
-            }
+            val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
+            Text(
+                text = "$prefix${notebook.title}",
+                color = Term.white,
+                fontFamily = Term.font,
+                fontSize = Term.fontSizeLg,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
         }
 
         // Audio player bar
@@ -131,16 +91,33 @@ fun NotebookDetailScreen(
         }
 
         if (detail.loading) {
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
+            val infiniteTransition = rememberInfiniteTransition(label = "detail_loading")
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 0.7f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "detail_shimmer",
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = "Načítám...",
-                    color = Term.orange,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                )
+                // Skeleton karty napodobující obsah
+                repeat(4) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(if (it == 0) 100.dp else 60.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Term.surfaceLight.copy(alpha = alpha)),
+                    )
+                }
             }
         } else {
             when (detail.tab) {
@@ -160,6 +137,45 @@ fun NotebookDetailScreen(
                 DetailTab.NOTES -> NotesTab(
                     detail, onDeleteNote,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
+
+        // ── Bottom tab bar ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Term.surface)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            // Taby (bez zpět — Android 13+ predictive back gesture)
+            for (tab in DetailTab.entries) {
+                val selected = detail.tab == tab
+                val (label, color) = when (tab) {
+                    DetailTab.CHAT -> "💬" to Term.green
+                    DetailTab.SOURCES -> "📚 ${detail.sources.size}" to Term.cyan
+                    DetailTab.ARTIFACTS -> "🎨 ${detail.artifacts.size}" to Term.purple
+                    DetailTab.NOTES -> "📝 ${detail.notes.size}" to Term.orange
+                }
+                val shape = RoundedCornerShape(10.dp)
+                Text(
+                    text = label,
+                    color = if (selected) color else Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(shape)
+                        .then(
+                            if (selected) Modifier
+                                .background(color.copy(alpha = 0.12f))
+                                .border(1.dp, color.copy(alpha = 0.3f), shape)
+                            else Modifier
+                        )
+                        .clickable { onTabSwitch(tab) }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                 )
             }
         }
@@ -190,8 +206,8 @@ private fun ChatTab(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Summary
             if (!detail.summary.isNullOrBlank() && detail.chatMessages.isEmpty()) {
@@ -213,9 +229,19 @@ private fun ChatTab(
 
             if (detail.chatAnswering) {
                 item {
+                    val infiniteTransition = rememberInfiniteTransition(label = "thinking")
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(800),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "thinking_alpha",
+                    )
                     Text(
                         text = "Přemýšlím...",
-                        color = Term.orange,
+                        color = Term.orange.copy(alpha = alpha),
                         fontFamily = Term.font,
                         fontSize = Term.fontSize,
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -231,7 +257,7 @@ private fun ChatTab(
                 .fillMaxWidth()
                 .clip(inputShape)
                 .background(Term.surface)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
@@ -287,9 +313,9 @@ private fun SummaryCard(summary: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Term.surface)
-            .border(1.dp, Term.cyan.copy(alpha = 0.2f), shape)
-            .padding(14.dp),
+            .background(Term.surface.copy(alpha = 0.7f))
+            .border(1.dp, Term.cyan.copy(alpha = 0.3f), shape)
+            .padding(16.dp),
     ) {
         Text(
             text = "📋 Souhrn",
@@ -313,7 +339,9 @@ private fun ChatBubble(
     val shape = RoundedCornerShape(14.dp)
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
         // Akce — ikonky
@@ -355,15 +383,15 @@ private fun ChatBubble(
         Spacer(modifier = Modifier.height(4.dp))
 
         // Bublina
-        val bubbleBg = if (isUser) Term.surfaceLight else Term.surface
-        val bubbleBorder = if (isUser) Term.cyan.copy(alpha = 0.15f) else Term.green.copy(alpha = 0.15f)
+        val bubbleBg = if (isUser) Term.surfaceLight else Term.surface.copy(alpha = 0.7f)
+        val bubbleBorder = if (isUser) Term.cyan.copy(alpha = 0.15f) else Term.green.copy(alpha = 0.2f)
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
+                .fillMaxWidth(if (isUser) 0.85f else 0.92f)
                 .clip(shape)
                 .background(bubbleBg)
                 .border(1.dp, bubbleBorder, shape)
-                .padding(12.dp),
+                .padding(14.dp),
         ) {
             if (isUser) {
                 Text(
@@ -422,13 +450,29 @@ private fun SourcesTab(
 
         if (detail.sources.isEmpty()) {
             item {
-                Text(
-                    text = "Žádné zdroje",
-                    color = Term.textDim,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                    modifier = Modifier.padding(16.dp),
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(text = "\uD83D\uDCDA", fontSize = 48.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Žádné zdroje",
+                        color = Term.white,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSizeLg,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Přidej webové stránky, texty nebo YouTube videa",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                }
             }
         } else {
             items(detail.sources, key = { it.id }) { src ->
@@ -651,13 +695,29 @@ private fun ArtifactsTab(
 
         if (detail.artifacts.isEmpty() && !showGenerate) {
             item {
-                Text(
-                    text = "Žádné artefakty",
-                    color = Term.textDim,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                    modifier = Modifier.padding(16.dp),
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(text = "\uD83C\uDFA8", fontSize = 48.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Zatím žádné artefakty",
+                        color = Term.white,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSizeLg,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Vygeneruj audio, report nebo prezentaci",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                }
             }
         }
 
@@ -1014,12 +1074,24 @@ private fun NotesTab(
 ) {
     if (detail.notes.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text(
-                text = "Žádné poznámky",
-                color = Term.textDim,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "\uD83D\uDCDD", fontSize = 48.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Zatím žádné poznámky",
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Ulož si odpovědi z chatu jako poznámky",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                )
+            }
         }
     } else {
         LazyColumn(
