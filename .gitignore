@@ -1,16 +1,48 @@
+# Android / Gradle
 *.iml
-.gradle
+.gradle/
 /local.properties
-/.idea
+/.idea/
 .DS_Store
-/build
-/app/build
-/captures
-.externalNativeBuild
-.cxx
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Build outputs
 *.apk
 *.ap_
+*.aab
 *.dex
 *.class
 *.log
+
+# Signing
+*.jks
+*.keystore
+keystore.properties
+
+# Google services
+google-services.json
+
+# Environment / secrets
+.env
+*.env.*
+
+# Reference implementations (not for public)
 references/
+
+# IDE
+*.swp
+*~
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Source icons (processed into mipmap resources)
+icon_compact.webp
+icon.svg
+image.webp
