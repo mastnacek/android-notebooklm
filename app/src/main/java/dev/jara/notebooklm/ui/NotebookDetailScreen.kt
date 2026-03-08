@@ -138,22 +138,34 @@ fun NotebookDetailScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .width(48.dp)
-                            .fillMaxHeight()
-                            .background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, Term.surface),
-                                ),
-                            ),
-                        contentAlignment = Alignment.CenterEnd,
+                            .matchParentSize()
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .wrapContentWidth(Alignment.End),
                     ) {
-                        Text(
-                            text = "…",
-                            color = Term.textDim,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSizeLg,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .width(32.dp)
+                                    .height(Term.fontSizeLg.value.dp + 4.dp)
+                                    .background(
+                                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                            colors = listOf(Color.Transparent, Term.surface),
+                                        ),
+                                    ),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .background(Term.surface)
+                            ) {
+                                Text(
+                                    text = "…",
+                                    color = Term.textDim,
+                                    fontFamily = Term.font,
+                                    fontSize = Term.fontSizeLg,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
                     }
                 }
             }
