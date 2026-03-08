@@ -178,7 +178,7 @@ fun NotebookListScreen(
                             Box {
                                 if (query.isEmpty()) {
                                     Text(
-                                        text = if (semanticMode) "sémantické hledání..." else "fulltext hledání...",
+                                        text = if (semanticMode) "← hledej významem…" else "← hledej v názvech…",
                                         color = Term.textDim,
                                         fontFamily = Term.font,
                                         fontSize = Term.fontSize,

@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -75,7 +77,7 @@ fun NotebookDetailScreen(
             .windowInsetsPadding(WindowInsets.navigationBars)
             .imePadding()
     ) {
-        // ── Header s typewriter efektem ──
+        // ── Header s marquee (bezici pas) efektem ──
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -83,32 +85,33 @@ fun NotebookDetailScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             val fullTitle = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} ${notebook.title}" else notebook.title
-            var typingTrigger by remember { mutableIntStateOf(0) }
-            var visibleChars by remember { mutableIntStateOf(0) }
-            var animationDone by remember { mutableStateOf(false) }
+            var marqueeTriger by remember { mutableIntStateOf(0) }
+            val scrollState = rememberScrollState()
 
-            // Typewriter animace — postupne zobrazuje znaky
-            LaunchedEffect(fullTitle, typingTrigger) {
-                animationDone = false
-                visibleChars = 0
-                for (i in 1..fullTitle.length) {
-                    visibleChars = i
-                    delay(35)
-                }
-                animationDone = true
+            // Marquee animace — plynule projede cely nazev a zastavi se
+            LaunchedEffect(fullTitle, marqueeTriger) {
+                scrollState.scrollTo(0)
+                delay(400) // kratka pauza pred startem
+                scrollState.animateScrollTo(
+                    scrollState.maxValue,
+                    animationSpec = tween(
+                        durationMillis = (fullTitle.length * 50).coerceIn(800, 4000),
+                        easing = LinearEasing,
+                    ),
+                )
             }
 
-            val displayText = if (animationDone) fullTitle else fullTitle.take(visibleChars)
-
             Text(
-                text = displayText,
+                text = fullTitle,
                 color = Term.white,
                 fontFamily = Term.font,
                 fontSize = Term.fontSizeLg,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.clickable { typingTrigger++ },
+                softWrap = false,
+                modifier = Modifier
+                    .horizontalScroll(scrollState)
+                    .clickable { marqueeTriger++ },
             )
         }
 
