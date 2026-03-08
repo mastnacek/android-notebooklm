@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jara.notebooklm.auth.LoginActivity
 import dev.jara.notebooklm.ui.*
 
@@ -47,23 +48,23 @@ class MainActivity : ComponentActivity() {
         viewModel = ViewModelProvider(this)[AppViewModel::class.java]
 
         setContent {
-            val themeMode by viewModel.themeMode.collectAsState()
+            val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
             NotebookLmTheme(themeMode = themeMode) {
-            val screen by viewModel.screen.collectAsState()
-            val notebooks by viewModel.notebooks.collectAsState()
-            val loading by viewModel.notebooksLoading.collectAsState()
-            val detail by viewModel.detail.collectAsState()
-            val error by viewModel.error.collectAsState()
-            val semanticResults by viewModel.semanticResults.collectAsState()
-            val searchLoading by viewModel.searchLoading.collectAsState()
-            val embeddingStatus by viewModel.embeddingStatus.collectAsState()
-            val favorites by viewModel.favorites.collectAsState()
-            val sortMode by viewModel.notebookSort.collectAsState()
+            val screen by viewModel.screen.collectAsStateWithLifecycle()
+            val notebooks by viewModel.notebooks.collectAsStateWithLifecycle()
+            val loading by viewModel.notebooksLoading.collectAsStateWithLifecycle()
+            val detail by viewModel.detail.collectAsStateWithLifecycle()
+            val error by viewModel.error.collectAsStateWithLifecycle()
+            val semanticResults by viewModel.semanticResults.collectAsStateWithLifecycle()
+            val searchLoading by viewModel.searchLoading.collectAsStateWithLifecycle()
+            val embeddingStatus by viewModel.embeddingStatus.collectAsStateWithLifecycle()
+            val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+            val sortMode by viewModel.notebookSort.collectAsStateWithLifecycle()
             var showSettings by remember { mutableStateOf(false) }
-            val dedupState by viewModel.dedup.collectAsState()
-            val detailDedupState by viewModel.detailDedup.collectAsState()
-            val classifyState by viewModel.classify.collectAsState()
-            val categories by viewModel.categories.collectAsState()
+            val dedupState by viewModel.dedup.collectAsStateWithLifecycle()
+            val detailDedupState by viewModel.detailDedup.collectAsStateWithLifecycle()
+            val classifyState by viewModel.classify.collectAsStateWithLifecycle()
+            val categories by viewModel.categories.collectAsStateWithLifecycle()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
 
             val folderPicker = rememberLauncherForActivityResult(
