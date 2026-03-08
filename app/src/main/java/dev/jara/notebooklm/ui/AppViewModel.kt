@@ -70,6 +70,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     internal val catPrefs = app.getSharedPreferences("categories", Context.MODE_PRIVATE)
     internal val _categories = MutableStateFlow<Map<String, String>>(emptyMap())
 
+    internal val _facets = MutableStateFlow<Map<String, NotebookFacets>>(emptyMap())
+    val facets: StateFlow<Map<String, NotebookFacets>> get() = _facets
+
     internal val _screen = MutableStateFlow<Screen>(
         if (authManager.isLoggedIn()) Screen.NotebookList else Screen.Login
     )
@@ -111,6 +114,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         editor.apply()
+        // Migrace kategorií do notebook_facets (jednorázově)
+        if (!prefs.getBoolean("facets_migrated", false)) {
+            for ((id, cat) in rawCats) {
+                embeddingDb.upsertFacets(id, NotebookFacets(topic = cat))
+            }
+            prefs.edit().putBoolean("facets_migrated", true).apply()
+        }
+        // Načti facety z DB
+        _facets.value = embeddingDb.getAllFacets()
+        // Categories z facet topic (zpětná kompatibilita)
+        _categories.value = _facets.value.mapValues { it.value.topic }.filterValues { it.isNotEmpty() }
         if (authManager.isLoggedIn()) {
             loadNotebooks()
         }
