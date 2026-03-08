@@ -9,11 +9,11 @@ import io.ktor.http.*
 import kotlinx.serialization.json.*
 
 class NotebookLmApi(
-    private val httpClient: HttpClient,
-    private val auth: AuthTokens,
+    internal val httpClient: HttpClient,
+    internal val auth: AuthTokens,
 ) {
     companion object {
-        private const val TAG = "NotebookLmApi"
+        internal const val TAG = "NotebookLmApi"
     }
 
 
@@ -72,51 +72,6 @@ class NotebookLmApi(
         return notebooks
     }
 
-    /** Rust: api::get_notebook_sources — RPC rLM1Ne */
-    suspend fun getSources(notebookId: String): List<Source> {
-        val params = buildJsonArray {
-            add(JsonPrimitive(notebookId))
-            add(JsonNull)
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonNull)
-            add(JsonPrimitive(0))
-        }
-        val result = rpcCall(
-            RpcMethod.GET_NOTEBOOK, params,
-            sourcePath = "/notebook/$notebookId"
-        ) ?: return emptyList()
-
-        return parseSources(result)
-    }
-
-    private fun parseSources(data: JsonElement): List<Source> {
-        val sources = mutableListOf<Source>()
-        try {
-            // Rust: inner[0][1] = array of sources
-            val list = data.jsonArray
-                .getOrNull(0)?.jsonArray
-                ?.getOrNull(1)?.jsonArray
-                ?: return emptyList()
-
-            for (src in list) {
-                try {
-                    val arr = src.jsonArray
-                    val id = arr.getOrNull(0)?.jsonArray
-                        ?.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: continue
-                    val title = arr.getOrNull(1)?.jsonPrimitive?.contentOrNull ?: "(bez nazvu)"
-                    val typeCode = arr.getOrNull(2)?.jsonArray
-                        ?.getOrNull(4)?.jsonPrimitive?.intOrNull ?: 0
-                    sources.add(Source(id, title, SourceType.fromCode(typeCode)))
-                } catch (e: Exception) {
-                    Log.w(TAG, "parseSources: skip item: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "parseSources: ${e.message}")
-        }
-        return sources
-    }
-
     /** Rust: api::get_notebook_summary — RPC VfAZjd */
     suspend fun getSummary(notebookId: String): String? {
         val params = buildJsonArray {
@@ -140,104 +95,6 @@ class NotebookLmApi(
                 findFirstString(result)
             } catch (_: Exception) { null }
         }
-    }
-
-    /** Rust: api::list_artifacts — RPC gArtLc */
-    suspend fun listArtifacts(notebookId: String): List<Artifact> {
-        val params = buildJsonArray {
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonPrimitive(notebookId))
-            add(JsonPrimitive("NOT artifact.status = \"ARTIFACT_STATUS_SUGGESTED\""))
-        }
-        val result = rpcCall(
-            RpcMethod.LIST_ARTIFACTS, params,
-            sourcePath = "/notebook/$notebookId"
-        ) ?: return emptyList()
-
-        return parseArtifacts(result)
-    }
-
-    /** Rust: api::delete_source — RPC tGMBJ */
-    suspend fun deleteSource(notebookId: String, sourceId: String) {
-        val params = buildJsonArray {
-            add(buildJsonArray {
-                add(buildJsonArray { add(JsonPrimitive(sourceId)) })
-            })
-        }
-        rpcCall(RpcMethod.DELETE_SOURCE, params, sourcePath = "/notebook/$notebookId")
-    }
-
-    /** Rust: api::delete_artifact — RPC V5N4be */
-    suspend fun deleteArtifact(artifactId: String) {
-        val params = buildJsonArray {
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonPrimitive(artifactId))
-        }
-        rpcCall(RpcMethod.DELETE_ARTIFACT, params, sourcePath = "/")
-    }
-
-    /** Rust: api::get_source_fulltext — RPC hizoJc
-     * Vraci textovy obsah zdroje pro hash porovnani pri deduplikaci */
-    suspend fun getSourceFulltext(notebookId: String, sourceId: String): String {
-        val params = buildJsonArray {
-            add(buildJsonArray { add(JsonPrimitive(sourceId)) })
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-        }
-        val result = rpcCall(
-            RpcMethod.GET_SOURCE, params,
-            sourcePath = "/notebook/$notebookId"
-        ) ?: return ""
-
-        // Content blocks na result[3][0] — rekurzivne extrahuj stringy
-        return try {
-            val blocks = result.jsonArray.getOrNull(3)?.jsonArray?.getOrNull(0)
-            if (blocks != null) extractAllText(blocks) else ""
-        } catch (_: Exception) { "" }
-    }
-
-    /** Rekurzivne extrahuje vsechny textove stringy z vnorenych poli */
-    private fun extractAllText(value: JsonElement, depth: Int = 50): String {
-        if (depth <= 0) return ""
-        return when {
-            value is kotlinx.serialization.json.JsonPrimitive && value.isString ->
-                value.content
-            value is JsonArray ->
-                value.joinToString("\n") { extractAllText(it, depth - 1) }
-            else -> ""
-        }
-    }
-
-    private fun parseArtifacts(data: JsonElement): List<Artifact> {
-        val artifacts = mutableListOf<Artifact>()
-        try {
-            Log.i(TAG, "parseArtifacts raw: ${data.toString().take(500)}")
-            val list = data.jsonArray.getOrNull(0)?.jsonArray ?: data.jsonArray
-            for (art in list) {
-                try {
-                    val arr = art.jsonArray
-                    val id = arr.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: continue
-                    val title = arr.getOrNull(1)?.jsonPrimitive?.contentOrNull ?: "(bez nazvu)"
-                    val typeCode = arr.getOrNull(2)?.jsonPrimitive?.intOrNull ?: 0
-                    val statusCode = arr.getOrNull(4)?.jsonPrimitive?.intOrNull ?: 4
-                    val url = extractArtifactUrl(arr, typeCode)
-                    Log.i(TAG, "parseArtifact: id=${id.take(8)}, type=$typeCode, status=$statusCode, url=${url?.take(80)}")
-                    // Loguj strukturu pro debug
-                    if (typeCode == 1) {
-                        Log.i(TAG, "parseArtifact AUDIO raw[6]: ${arr.getOrNull(6)?.toString()?.take(300)}")
-                    } else {
-                        // Loguj cely artefakt pro non-audio typy (hledame kde je URL)
-                        Log.i(TAG, "parseArtifact type=$typeCode raw: ${arr.toString().take(800)}")
-                    }
-                    artifacts.add(Artifact(id, title, ArtifactType.fromCode(typeCode), ArtifactStatus.fromCode(statusCode), url))
-                } catch (e: Exception) {
-                    Log.w(TAG, "parseArtifacts: skip: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "parseArtifacts: ${e.message}")
-        }
-        return artifacts
     }
 
     /** Chat — GenerateFreeFormStreamed (specialni endpoint, ne batchexecute) */
@@ -358,7 +215,7 @@ class NotebookLmApi(
     }
 
     /** Najde prvni neprazdny string v nested JSON strukture */
-    private fun findFirstString(element: JsonElement): String? {
+    internal fun findFirstString(element: JsonElement): String? {
         return when (element) {
             is JsonPrimitive -> element.contentOrNull?.takeIf { it.length > 20 }
             is kotlinx.serialization.json.JsonArray -> {
@@ -370,57 +227,6 @@ class NotebookLmApi(
             }
             else -> null
         }
-    }
-
-    /** Extrahuje URL z artifact dat */
-    private fun extractArtifactUrl(arr: JsonArray, typeCode: Int): String? {
-        return try {
-            when (typeCode) {
-                // Audio: hledame URL v art[6] — je to pole kde stringy jsou URLs
-                // Format: [null, [...], "url_m140", "url_m18", ...]
-                // Preferujeme URL bez =m140 suffix (lepsi kompatibilita), nebo prvni URL
-                1 -> {
-                    val inner = arr.getOrNull(6)?.jsonArray ?: return null
-                    // Najdi vsechny URL stringy
-                    val urls = inner.mapNotNull { el ->
-                        try { el.jsonPrimitive.contentOrNull }
-                        catch (_: Exception) { null }
-                    }.filter { it.startsWith("https://") }
-                    Log.i(TAG, "extractArtifactUrl AUDIO: found ${urls.size} urls")
-                    urls.forEach { Log.i(TAG, "  url: ${it.takeLast(30)}") }
-                    // Preferuj URL s =m18 (MP4/AAC), pak =m140 (WebM), pak cokoliv
-                    urls.firstOrNull { it.contains("=m18") }
-                        ?: urls.firstOrNull()
-                }
-
-                // Video: art[8] item s "video/mp4"
-                3 -> arr.getOrNull(8)?.jsonArray?.firstNotNullOfOrNull { item ->
-                    try {
-                        val mime = item.jsonArray.getOrNull(2)?.jsonPrimitive?.contentOrNull
-                        if (mime == "video/mp4") item.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull
-                        else null
-                    } catch (_: Exception) { null }
-                }
-
-                // Infographic: hledame URL v hluboke strukture
-                7 -> arr.toList().asReversed().firstNotNullOfOrNull { item ->
-                    try {
-                        item.jsonArray.getOrNull(2)?.jsonArray
-                            ?.getOrNull(0)?.jsonArray
-                            ?.getOrNull(1)?.jsonArray
-                            ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
-                            ?.takeIf { it.startsWith("http") }
-                    } catch (_: Exception) { null }
-                }
-
-                // SlideDeck/prezentace: art[16][3] = PDF URL
-                8 -> arr.getOrNull(16)?.jsonArray
-                    ?.getOrNull(3)?.jsonPrimitive?.contentOrNull
-                    ?.takeIf { it.startsWith("http") }
-
-                else -> null
-            }
-        } catch (_: Exception) { null }
     }
 
     private fun extractSourceCount(arr: JsonArray): Int {
@@ -557,206 +363,6 @@ class NotebookLmApi(
         rpcCall(RpcMethod.DELETE_NOTEBOOK, params)
     }
 
-    // ── Sources management ──
-
-    /** Prida URL zdroj do notebooku */
-    suspend fun addSourceUrl(notebookId: String, url: String): String? {
-        val params = buildJsonArray {
-            add(buildJsonArray {
-                add(buildJsonArray {
-                    add(JsonNull)  // 0
-                    add(JsonNull)  // 1
-                    add(buildJsonArray { add(JsonPrimitive(url)) })  // 2 - URL
-                    add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                })
-            })
-            add(JsonPrimitive(notebookId))
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonNull)
-            add(JsonNull)
-        }
-        val result = rpcCall(RpcMethod.ADD_SOURCE, params, sourcePath = "/notebook/$notebookId")
-        return extractSourceId(result)
-    }
-
-    /** Prida textovy zdroj do notebooku */
-    suspend fun addSourceText(notebookId: String, title: String, content: String): String? {
-        val params = buildJsonArray {
-            add(buildJsonArray {
-                add(buildJsonArray {
-                    add(JsonNull)  // 0
-                    add(buildJsonArray {  // 1 - text
-                        add(JsonPrimitive(title))
-                        add(JsonPrimitive(content))
-                    })
-                    add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                })
-            })
-            add(JsonPrimitive(notebookId))
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonNull)
-            add(JsonNull)
-        }
-        val result = rpcCall(RpcMethod.ADD_SOURCE, params, sourcePath = "/notebook/$notebookId")
-        return extractSourceId(result)
-    }
-
-    /** Prida YouTube zdroj do notebooku */
-    suspend fun addSourceYoutube(notebookId: String, url: String): String? {
-        val params = buildJsonArray {
-            add(buildJsonArray {
-                add(buildJsonArray {
-                    add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                    add(JsonNull); add(JsonNull); add(JsonNull)
-                    add(buildJsonArray { add(JsonPrimitive(url)) })  // 7 - YouTube URL
-                    add(JsonNull); add(JsonNull)
-                    add(JsonPrimitive(1))
-                })
-            })
-            add(JsonPrimitive(notebookId))
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(buildJsonArray {
-                add(JsonPrimitive(1)); add(JsonNull); add(JsonNull); add(JsonNull)
-                add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                add(buildJsonArray { add(JsonPrimitive(1)) })
-            })
-        }
-        val result = rpcCall(RpcMethod.ADD_SOURCE, params, sourcePath = "/notebook/$notebookId")
-        return extractSourceId(result)
-    }
-
-    private fun extractSourceId(result: JsonElement?): String? {
-        return try {
-            result?.jsonArray?.getOrNull(0)?.jsonArray
-                ?.getOrNull(0)?.jsonArray
-                ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
-        } catch (_: Exception) { null }
-    }
-
-    // ── Artifact generation ──
-
-    /** Spusti generovani artefaktu */
-    suspend fun generateArtifact(
-        notebookId: String,
-        sources: List<Source>,
-        type: GenerateType,
-        options: GenerateOptions = GenerateOptions(),
-    ): String? {
-        val sourcesTriple = buildJsonArray {
-            for (s in sources) {
-                add(buildJsonArray { add(buildJsonArray { add(JsonPrimitive(s.id)) }) })
-            }
-        }
-        val sourcesDouble = buildJsonArray {
-            for (s in sources) {
-                add(buildJsonArray { add(JsonPrimitive(s.id)) })
-            }
-        }
-
-        val inst = if (options.instructions != null) JsonPrimitive(options.instructions) else JsonNull
-
-        // Kazdy typ ma svuj specificky payload tvar (z Python reference)
-        val innerArray = when (type) {
-            GenerateType.AUDIO -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-                add(JsonNull); add(JsonNull)
-                add(buildJsonArray {
-                    add(JsonNull)
-                    add(buildJsonArray {
-                        add(inst)
-                        add(JsonPrimitive(options.audioLength.code))
-                        add(JsonNull)
-                        add(sourcesDouble)
-                        add(JsonPrimitive(options.language))
-                        add(JsonNull)
-                        add(JsonPrimitive(options.audioFormat.code))
-                    })
-                })
-            }
-            GenerateType.VIDEO -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-                add(JsonNull); add(JsonNull)
-                add(buildJsonArray {
-                    add(JsonNull); add(JsonNull); add(JsonNull)
-                    add(buildJsonArray {
-                        add(inst); add(JsonNull); add(sourcesDouble)
-                        add(JsonPrimitive(options.language)); add(JsonNull)
-                        add(JsonPrimitive(options.videoFormat.code))
-                        add(JsonPrimitive(options.videoStyle.code))
-                    })
-                })
-            }
-            GenerateType.QUIZ -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-                add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                add(buildJsonArray {
-                    add(JsonNull)
-                    add(buildJsonArray {
-                        add(JsonPrimitive(2)) // variant: quiz
-                        add(JsonNull); add(inst); add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
-                        add(buildJsonArray {
-                            add(JsonPrimitive(options.quizQuantity.code))
-                            add(JsonPrimitive(options.quizDifficulty.code))
-                        })
-                    })
-                })
-            }
-            GenerateType.INFOGRAPHIC -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-                // Padding do pozice [14]
-                repeat(10) { add(JsonNull) }
-                add(buildJsonArray {
-                    add(buildJsonArray {
-                        add(inst)
-                        add(JsonPrimitive(options.language))
-                        add(JsonNull)
-                        add(JsonPrimitive(options.infographicOrientation.code))
-                        add(JsonPrimitive(options.infographicDetail.code))
-                    })
-                })
-            }
-            GenerateType.SLIDE_DECK -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-                // Padding do pozice [16]
-                repeat(12) { add(JsonNull) }
-                add(buildJsonArray {
-                    add(buildJsonArray {
-                        add(inst)
-                        add(JsonPrimitive(options.language))
-                        add(JsonPrimitive(options.slideDeckFormat.code))
-                        add(JsonPrimitive(options.slideDeckLength.code))
-                    })
-                })
-            }
-            else -> buildJsonArray {
-                add(JsonNull); add(JsonNull); add(JsonPrimitive(type.code)); add(sourcesTriple)
-            }
-        }
-
-        val params = buildJsonArray {
-            add(buildJsonArray { add(JsonPrimitive(2)) })
-            add(JsonPrimitive(notebookId))
-            add(innerArray)
-        }
-
-        val result = rpcCall(RpcMethod.GENERATE_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
-        return try {
-            result?.jsonArray?.getOrNull(0)?.jsonArray
-                ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
-        } catch (_: Exception) { null }
-    }
-
-    /** Ziska interaktivni HTML kvizu nebo flashcards */
-    suspend fun getInteractiveHtml(notebookId: String, artifactId: String): String? {
-        val params = buildJsonArray {
-            add(buildJsonArray { add(JsonPrimitive(artifactId)) })
-        }
-        val result = rpcCall(RpcMethod.GET_INTERACTIVE_HTML, params, sourcePath = "/notebook/$notebookId")
-        return try {
-            findFirstString(result ?: return null)
-        } catch (_: Exception) { null }
-    }
-
     /** Nacte historii konverzace */
     suspend fun getConversationTurns(
         notebookId: String,
@@ -797,7 +403,7 @@ class NotebookLmApi(
         return messages
     }
 
-    private suspend fun rpcCall(
+    internal suspend fun rpcCall(
         method: RpcMethod,
         params: JsonArray,
         sourcePath: String = "/",
