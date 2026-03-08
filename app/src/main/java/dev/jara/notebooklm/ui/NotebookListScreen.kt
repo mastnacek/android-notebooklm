@@ -415,7 +415,7 @@ fun NotebookListScreen(
                                     confirmValueChange = { value ->
                                         when (value) {
                                             SwipeToDismissBoxValue.EndToStart -> {
-                                                onToggleFavorite(nb.id)
+                                                if (hasApiKey) onClassifySelected(setOf(nb.id))
                                                 false
                                             }
                                             SwipeToDismissBoxValue.StartToEnd -> {
@@ -433,17 +433,17 @@ fun NotebookListScreen(
                                     backgroundContent = {
                                         val direction = dismissState.dismissDirection
                                         val bgColor = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> Term.orange.copy(alpha = 0.15f)
+                                            SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
                                             SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
                                             else -> Color.Transparent
                                         }
                                         val icon = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> if (nb.id in favorites) "★→☆" else "☆→★"
+                                            SwipeToDismissBoxValue.EndToStart -> "AI kat."
                                             SwipeToDismissBoxValue.StartToEnd -> "Embed"
                                             else -> ""
                                         }
                                         val iconColor = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> Term.orange
+                                            SwipeToDismissBoxValue.EndToStart -> Term.purple
                                             SwipeToDismissBoxValue.StartToEnd -> Term.green
                                             else -> Term.textDim
                                         }
@@ -493,7 +493,7 @@ fun NotebookListScreen(
                             confirmValueChange = { value ->
                                 when (value) {
                                     SwipeToDismissBoxValue.EndToStart -> {
-                                        onToggleFavorite(nb.id)
+                                        if (hasApiKey) onClassifySelected(setOf(nb.id))
                                         false
                                     }
                                     SwipeToDismissBoxValue.StartToEnd -> {
@@ -511,17 +511,17 @@ fun NotebookListScreen(
                             backgroundContent = {
                                 val direction = dismissState.dismissDirection
                                 val bgColor = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Term.orange.copy(alpha = 0.15f)
+                                    SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
                                     SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
                                     else -> Color.Transparent
                                 }
                                 val icon = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> if (nb.id in favorites) "★→☆" else "☆→★"
+                                    SwipeToDismissBoxValue.EndToStart -> "AI kat."
                                     SwipeToDismissBoxValue.StartToEnd -> "Embed"
                                     else -> ""
                                 }
                                 val iconColor = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Term.orange
+                                    SwipeToDismissBoxValue.EndToStart -> Term.purple
                                     SwipeToDismissBoxValue.StartToEnd -> Term.green
                                     else -> Term.textDim
                                 }
