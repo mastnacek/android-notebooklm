@@ -40,6 +40,7 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
 
     /** Ulozi embedding pro notebook. Prepise pokud existuje. */
     fun upsertEmbedding(notebookId: String, title: String, description: String, embedding: FloatArray) {
+        Log.i(TAG, "upsert: id=$notebookId, title=$title, embDim=${embedding.size}, first3=${embedding.take(3)}")
         val blob = floatArrayToBlob(embedding)
         val cv = ContentValues().apply {
             put("notebook_id", notebookId)
@@ -67,7 +68,18 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
     }
 
     /** KNN search — cosine similarity, vraci top K vysledku */
+    /** Pocet ulozenych embeddingu */
+    fun count(): Int {
+        val cursor = readableDatabase.rawQuery("SELECT COUNT(*) FROM notebook_embeddings", null)
+        val count = if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        cursor.close()
+        return count
+    }
+
+    /** KNN search — cosine similarity, vraci top K vysledku */
     fun search(queryEmbedding: FloatArray, limit: Int = 20): List<Pair<String, Float>> {
+        val totalCount = count()
+        Log.i(TAG, "search: queryDim=${queryEmbedding.size}, dbCount=$totalCount")
         val results = mutableListOf<Pair<String, Float>>()
         val cursor = readableDatabase.rawQuery(
             "SELECT notebook_id, embedding FROM notebook_embeddings", null
@@ -81,6 +93,7 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
         }
         cursor.close()
         results.sortByDescending { it.second }
+        Log.i(TAG, "search: ${results.size} vysledku, top3=${results.take(3).map { "${it.first.take(8)}:${it.second}" }}")
         return results.take(limit)
     }
 

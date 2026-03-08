@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 
@@ -52,6 +53,9 @@ dependencies {
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.security.crypto)
     implementation(libs.browser)
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
 
     // Ktor
     implementation(libs.ktor.client.core)

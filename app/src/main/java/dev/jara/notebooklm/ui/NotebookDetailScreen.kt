@@ -1,18 +1,39 @@
 package dev.jara.notebooklm.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.jara.notebooklm.rpc.NotebookLmApi
 
 @Composable
@@ -20,99 +41,239 @@ fun NotebookDetailScreen(
     notebook: NotebookLmApi.Notebook,
     detail: DetailState,
     onBack: () -> Unit,
+    onTabSwitch: (DetailTab) -> Unit,
+    onSendChat: (String) -> Unit,
+    onSaveAsNote: (String) -> Unit,
+    onPlayAudio: (String, String) -> Unit,
+    onStopAudio: () -> Unit,
+    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onAddSource: (type: String, value: String, title: String) -> Unit,
+    onDeleteSource: (String) -> Unit,
+    onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onOpenInteractiveHtml: (String) -> Unit,
+    onDeleteNote: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Term.bg)
-            .windowInsetsPadding(WindowInsets.systemBars)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .imePadding()
     ) {
-        // Header s back
-        Row(
+        // ── Header karta ──
+        val headerShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(headerShape)
                 .background(Term.surface)
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Text(
-                text = "< back",
-                color = Term.cyan,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-                modifier = Modifier
-                    .clickable { onBack() }
-                    .padding(end = 16.dp),
-            )
-            val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
-            Text(
-                text = "$prefix${notebook.title}",
-                color = Term.green,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DetailPill("‹ zpět", Term.cyan) { onBack() }
+                Spacer(modifier = Modifier.width(12.dp))
+                val prefix = if (notebook.emoji.isNotEmpty()) "${notebook.emoji} " else ""
+                Text(
+                    text = "$prefix${notebook.title}",
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Tab pills — kompaktni, jen ikona + pocet
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (tab in DetailTab.entries) {
+                    val selected = detail.tab == tab
+                    val (label, color) = when (tab) {
+                        DetailTab.CHAT -> "💬" to Term.green
+                        DetailTab.SOURCES -> "📚 ${detail.sources.size}" to Term.cyan
+                        DetailTab.ARTIFACTS -> "🎨 ${detail.artifacts.size}" to Term.purple
+                        DetailTab.NOTES -> "📝 ${detail.notes.size}" to Term.orange
+                    }
+                    val shape = RoundedCornerShape(10.dp)
+                    Text(
+                        text = label,
+                        color = if (selected) color else Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clip(shape)
+                            .then(
+                                if (selected) Modifier
+                                    .background(color.copy(alpha = 0.12f))
+                                    .border(1.dp, color.copy(alpha = 0.3f), shape)
+                                else Modifier
+                            )
+                            .clickable { onTabSwitch(tab) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    )
+                }
+            }
+        }
+
+        // Audio player bar
+        if (detail.audioPlayer != null) {
+            AudioPlayerBar(
+                url = detail.audioPlayer.url,
+                title = detail.audioPlayer.title,
+                cookies = detail.audioPlayer.cookies,
+                onClose = onStopAudio,
             )
         }
 
         if (detail.loading) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "> nacitam...",
+                    text = "Načítám...",
                     color = Term.orange,
                     fontFamily = Term.font,
-                    fontSize = Term.fontSize,
+                    fontSize = Term.fontSizeLg,
                 )
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-            ) {
-                // Souhrn
-                if (!detail.summary.isNullOrBlank()) {
-                    item {
-                        SectionHeader("SOUHRN")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = detail.summary,
-                            color = Term.text,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                            lineHeight = Term.fontSize * 1.5f,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Term.surface)
-                                .padding(12.dp),
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                }
+            when (detail.tab) {
+                DetailTab.CHAT -> ChatTab(
+                    detail, onSendChat, onSaveAsNote,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                DetailTab.SOURCES -> SourcesTab(
+                    detail, onAddSource, onDeleteSource,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                DetailTab.ARTIFACTS -> ArtifactsTab(
+                    detail, onPlayAudio, onDownloadAudio, onGenerateArtifact,
+                    onOpenInteractiveHtml, detail.downloads,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                DetailTab.NOTES -> NotesTab(
+                    detail, onDeleteNote,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
 
-                // Zdroje
+// ══════════════════════════════════════════════════════════════════════════════
+// CHAT TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ChatTab(
+    detail: DetailState,
+    onSendChat: (String) -> Unit,
+    onSaveAsNote: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var input by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(detail.chatMessages.size) {
+        if (detail.chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(detail.chatMessages.size - 1)
+        }
+    }
+
+    Column(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Summary
+            if (!detail.summary.isNullOrBlank() && detail.chatMessages.isEmpty()) {
                 item {
-                    SectionHeader("ZDROJE (${detail.sources.size})")
-                    Spacer(modifier = Modifier.height(6.dp))
+                    SummaryCard(detail.summary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Zeptej se na cokoliv...",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
                 }
+            }
 
-                if (detail.sources.isEmpty()) {
-                    item {
-                        Text(
-                            text = "  zadne zdroje",
-                            color = Term.textDim,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                        )
+            items(detail.chatMessages) { msg ->
+                ChatBubble(msg, onSaveAsNote = onSaveAsNote)
+            }
+
+            if (detail.chatAnswering) {
+                item {
+                    Text(
+                        text = "Přemýšlím...",
+                        color = Term.orange,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+            }
+        }
+
+        // Input card
+        val inputShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(inputShape)
+                .background(Term.surface)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = input,
+                onValueChange = { input = it },
+                textStyle = TextStyle(
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                ),
+                cursorBrush = SolidColor(Term.green),
+                singleLine = false,
+                maxLines = 4,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(
+                    onSend = {
+                        if (input.isNotBlank() && !detail.chatAnswering) {
+                            onSendChat(input.trim())
+                            input = ""
+                        }
+                    },
+                ),
+                decorationBox = { inner ->
+                    Box {
+                        if (input.isEmpty()) {
+                            Text(
+                                text = "Zeptej se...",
+                                color = Term.textDim,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSizeLg,
+                            )
+                        }
+                        inner()
                     }
-                } else {
-                    itemsIndexed(detail.sources) { _, src ->
-                        SourceItem(src)
-                    }
+                },
+                modifier = Modifier.weight(1f),
+            )
+            if (input.isNotBlank() && !detail.chatAnswering) {
+                Spacer(modifier = Modifier.width(8.dp))
+                DetailPill("Odeslat", Term.green) {
+                    onSendChat(input.trim())
+                    input = ""
                 }
             }
         }
@@ -120,49 +281,247 @@ fun NotebookDetailScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    val borderColor = Term.border
-    Text(
-        text = "── $title ──",
-        color = Term.cyan,
-        fontFamily = Term.font,
-        fontSize = Term.fontSize,
-        fontWeight = FontWeight.Bold,
+private fun SummaryCard(summary: String) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBehind {
-                drawLine(
-                    color = borderColor,
-                    start = Offset(0f, size.height),
-                    end = Offset(size.width, size.height),
-                    strokeWidth = 1f,
-                )
-            }
-            .padding(bottom = 4.dp),
-    )
+            .clip(shape)
+            .background(Term.surface)
+            .border(1.dp, Term.cyan.copy(alpha = 0.2f), shape)
+            .padding(14.dp),
+    ) {
+        Text(
+            text = "📋 Souhrn",
+            color = Term.cyan,
+            fontFamily = Term.font,
+            fontSize = Term.fontSizeLg,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        MarkdownText(text = summary, color = Term.text)
+    }
 }
 
 @Composable
-private fun SourceItem(src: NotebookLmApi.Source) {
-    val borderColor = Term.border
+private fun ChatBubble(
+    msg: NotebookLmApi.ChatMessage,
+    onSaveAsNote: (String) -> Unit,
+) {
+    val isUser = msg.role == NotebookLmApi.ChatRole.USER
+    val context = LocalContext.current
+    val shape = RoundedCornerShape(14.dp)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
+    ) {
+        // Akce — ikonky
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = if (isUser) "Ty" else "NLM",
+                color = if (isUser) Term.cyan else Term.green,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+
+            if (!isUser) {
+                var saved by remember { mutableStateOf(false) }
+                MicroAction(if (saved) "✓" else "📝", if (saved) Term.green else Term.textDim) {
+                    if (!saved) { onSaveAsNote(msg.text); saved = true }
+                }
+            }
+
+            var copied by remember { mutableStateOf(false) }
+            MicroAction(if (copied) "✓" else "📋", if (copied) Term.green else Term.textDim) {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
+                copied = true
+            }
+            IconMicroAction(Icons.Default.Share, Term.textDim) {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_TEXT, msg.text)
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(sendIntent, null))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Bublina
+        val bubbleBg = if (isUser) Term.surfaceLight else Term.surface
+        val bubbleBorder = if (isUser) Term.cyan.copy(alpha = 0.15f) else Term.green.copy(alpha = 0.15f)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .clip(shape)
+                .background(bubbleBg)
+                .border(1.dp, bubbleBorder, shape)
+                .padding(12.dp),
+        ) {
+            if (isUser) {
+                Text(
+                    text = msg.text,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    lineHeight = Term.fontSize * 1.4f,
+                )
+            } else {
+                MarkdownText(text = msg.text, color = Term.text)
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SOURCES TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SourcesTab(
+    detail: DetailState,
+    onAddSource: (type: String, value: String, title: String) -> Unit,
+    onDeleteSource: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    if (showAddDialog) {
+        AddSourceDialog(
+            onAdd = { type, value, title -> onAddSource(type, value, title); showAddDialog = false },
+            onDismiss = { showAddDialog = false },
+        )
+    }
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Souhrn
+        if (!detail.summary.isNullOrBlank()) {
+            item {
+                SummaryCard(detail.summary)
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+
+        // Pridat zdroj
+        item {
+            DetailPill("＋ Zdroj", Term.green) { showAddDialog = true }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        if (detail.sources.isEmpty()) {
+            item {
+                Text(
+                    text = "Žádné zdroje",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        } else {
+            items(detail.sources, key = { it.id }) { src ->
+                SwipeToDismissSourceCard(src, onDeleteSource)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDismissSourceCard(
+    src: NotebookLmApi.Source,
+    onDeleteSource: (String) -> Unit,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                confirmDelete = true
+                false // nepotvrdi swipe — cekame na dialog
+            } else false
+        }
+    )
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            confirmButton = {
+                DetailPill("Smazat", Term.red) {
+                    onDeleteSource(src.id)
+                    confirmDelete = false
+                }
+            },
+            dismissButton = {
+                DetailPill("Zrušit", Term.textDim) { confirmDelete = false }
+            },
+            title = {
+                Text("Smazat zdroj?", color = Term.white, fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(src.title, color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize)
+            },
+            containerColor = Term.surface,
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) Term.red
+                else Term.red.copy(alpha = 0.3f),
+                label = "swipeBg",
+            )
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1.1f else 0.8f,
+                label = "swipeScale",
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+            }
+        },
+        enableDismissFromStartToEnd = false,
+    ) {
+        SourceCard(src)
+    }
+}
+
+@Composable
+private fun SourceCard(src: NotebookLmApi.Source) {
+    val shape = RoundedCornerShape(14.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBehind {
-                drawLine(
-                    color = borderColor,
-                    start = Offset(0f, size.height),
-                    end = Offset(size.width, size.height),
-                    strokeWidth = 1f,
-                )
-            }
-            .padding(horizontal = 8.dp, vertical = 12.dp),
+            .clip(shape)
+            .background(Term.surface)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = src.type.icon,
-            fontSize = Term.fontSizeLg,
-            modifier = Modifier.padding(end = 10.dp),
+            fontSize = 20.sp,
+            modifier = Modifier.padding(end = 12.dp),
         )
         Text(
             text = src.title,
@@ -171,5 +530,737 @@ private fun SourceItem(src: NotebookLmApi.Source) {
             fontSize = Term.fontSize,
             modifier = Modifier.weight(1f),
         )
+        Text(
+            text = "‹ swipe",
+            color = Term.textDim,
+            fontFamily = Term.font,
+            fontSize = 11.sp,
+        )
     }
+}
+
+@Composable
+private fun AddSourceDialog(
+    onAdd: (type: String, value: String, title: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var selectedType by remember { mutableStateOf("url") }
+    var value by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            DetailPill("Přidat", Term.green) {
+                if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
+            }
+        },
+        dismissButton = {
+            DetailPill("Zrušit", Term.textDim) { onDismiss() }
+        },
+        title = {
+            Text("Přidat zdroj", color = Term.white, fontFamily = Term.font,
+                fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                // Typ
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((type, icon) in listOf("url" to "🌐", "youtube" to "🎥", "text" to "📝")) {
+                        val selected = selectedType == type
+                        val shape = RoundedCornerShape(10.dp)
+                        Text(
+                            text = icon,
+                            fontSize = 20.sp,
+                            modifier = Modifier
+                                .clip(shape)
+                                .then(
+                                    if (selected) Modifier
+                                        .background(Term.green.copy(alpha = 0.15f))
+                                        .border(1.dp, Term.green.copy(alpha = 0.4f), shape)
+                                    else Modifier.background(Term.bg)
+                                )
+                                .clickable { selectedType = type }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (selectedType == "text") {
+                    DetailInput(
+                        value = title,
+                        onValueChange = { title = it },
+                        placeholder = "Název...",
+                        singleLine = true,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                DetailInput(
+                    value = value,
+                    onValueChange = { value = it },
+                    placeholder = when (selectedType) {
+                        "url" -> "https://..."
+                        "youtube" -> "https://youtube.com/..."
+                        else -> "Obsah textu..."
+                    },
+                    singleLine = selectedType != "text",
+                    maxLines = if (selectedType == "text") 6 else 1,
+                )
+            }
+        },
+        containerColor = Term.surface,
+        shape = RoundedCornerShape(20.dp),
+    )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ARTIFACTS TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ArtifactsTab(
+    detail: DetailState,
+    onPlayAudio: (String, String) -> Unit,
+    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onGenerateArtifact: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onOpenInteractiveHtml: (String) -> Unit,
+    downloads: Map<String, DownloadState>,
+    modifier: Modifier = Modifier,
+) {
+    var showGenerate by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Generovat
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailPill("＋ Generovat", Term.purple) { showGenerate = !showGenerate }
+            }
+        }
+
+        if (showGenerate) {
+            item {
+                GenerateArtifactPanel(onGenerateArtifact) { showGenerate = false }
+            }
+        }
+
+        if (detail.artifacts.isEmpty() && !showGenerate) {
+            item {
+                Text(
+                    text = "Žádné artefakty",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+
+        items(detail.artifacts) { art ->
+            ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, downloads[art.id])
+        }
+    }
+}
+
+@Composable
+private fun GenerateArtifactPanel(
+    onGenerate: (NotebookLmApi.GenerateType, NotebookLmApi.GenerateOptions) -> Unit,
+    onClose: () -> Unit,
+) {
+    var selectedType by remember { mutableStateOf<NotebookLmApi.GenerateType?>(null) }
+
+    // Options state
+    var audioFormat by remember { mutableStateOf(NotebookLmApi.AudioFormat.DEEP_DIVE) }
+    var audioLength by remember { mutableStateOf(NotebookLmApi.AudioLength.DEFAULT) }
+    var videoFormat by remember { mutableStateOf(NotebookLmApi.VideoFormat.EXPLAINER) }
+    var videoStyle by remember { mutableStateOf(NotebookLmApi.VideoStyle.AUTO) }
+    var quizDifficulty by remember { mutableStateOf(NotebookLmApi.QuizDifficulty.MEDIUM) }
+    var quizQuantity by remember { mutableStateOf(NotebookLmApi.QuizQuantity.STANDARD) }
+    var infraOrientation by remember { mutableStateOf(NotebookLmApi.InfographicOrientation.PORTRAIT) }
+    var infraDetail by remember { mutableStateOf(NotebookLmApi.InfographicDetail.STANDARD) }
+    var slideFormat by remember { mutableStateOf(NotebookLmApi.SlideDeckFormat.DETAILED) }
+    var slideLength by remember { mutableStateOf(NotebookLmApi.SlideDeckLength.DEFAULT) }
+    var instructions by remember { mutableStateOf("") }
+
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Term.surface)
+            .border(1.dp, Term.purple.copy(alpha = 0.2f), shape)
+            .padding(14.dp),
+    ) {
+        if (selectedType == null) {
+            // Grid vyber typu
+            Text("Generovat", color = Term.purple, fontFamily = Term.font,
+                fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val types = NotebookLmApi.GenerateType.entries
+            for (row in types.chunked(4)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    for (type in row) {
+                        val icon = generateTypeIcon(type)
+                        val btnShape = RoundedCornerShape(10.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(btnShape)
+                                .background(Term.bg)
+                                .clickable { selectedType = type }
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                        ) {
+                            Text(text = icon, fontSize = 22.sp)
+                            Text(type.label, color = Term.textDim, fontFamily = Term.font,
+                                fontSize = 10.sp, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        } else {
+            // Parametry pro vybrany typ
+            val type = selectedType!!
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MicroAction("‹", Term.cyan) { selectedType = null }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("${generateTypeIcon(type)} ${type.label}", color = Term.purple,
+                    fontFamily = Term.font, fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            when (type) {
+                NotebookLmApi.GenerateType.AUDIO -> {
+                    OptionRow("Formát") {
+                        for (f in NotebookLmApi.AudioFormat.entries) {
+                            OptionChip(f.label, f == audioFormat) { audioFormat = f }
+                        }
+                    }
+                    OptionRow("Délka") {
+                        for (l in NotebookLmApi.AudioLength.entries) {
+                            OptionChip(l.label, l == audioLength) { audioLength = l }
+                        }
+                    }
+                }
+                NotebookLmApi.GenerateType.VIDEO -> {
+                    OptionRow("Formát") {
+                        for (f in NotebookLmApi.VideoFormat.entries) {
+                            OptionChip(f.label, f == videoFormat) { videoFormat = f }
+                        }
+                    }
+                    OptionRow("Styl") {
+                        for (s in NotebookLmApi.VideoStyle.entries) {
+                            OptionChip(s.label, s == videoStyle) { videoStyle = s }
+                        }
+                    }
+                }
+                NotebookLmApi.GenerateType.QUIZ -> {
+                    OptionRow("Obtížnost") {
+                        for (d in NotebookLmApi.QuizDifficulty.entries) {
+                            OptionChip(d.label, d == quizDifficulty) { quizDifficulty = d }
+                        }
+                    }
+                    OptionRow("Množství") {
+                        for (q in NotebookLmApi.QuizQuantity.entries) {
+                            OptionChip(q.label, q == quizQuantity) { quizQuantity = q }
+                        }
+                    }
+                }
+                NotebookLmApi.GenerateType.INFOGRAPHIC -> {
+                    OptionRow("Orientace") {
+                        for (o in NotebookLmApi.InfographicOrientation.entries) {
+                            OptionChip(o.label, o == infraOrientation) { infraOrientation = o }
+                        }
+                    }
+                    OptionRow("Detail") {
+                        for (d in NotebookLmApi.InfographicDetail.entries) {
+                            OptionChip(d.label, d == infraDetail) { infraDetail = d }
+                        }
+                    }
+                }
+                NotebookLmApi.GenerateType.SLIDE_DECK -> {
+                    OptionRow("Formát") {
+                        for (f in NotebookLmApi.SlideDeckFormat.entries) {
+                            OptionChip(f.label, f == slideFormat) { slideFormat = f }
+                        }
+                    }
+                    OptionRow("Délka") {
+                        for (l in NotebookLmApi.SlideDeckLength.entries) {
+                            OptionChip(l.label, l == slideLength) { slideLength = l }
+                        }
+                    }
+                }
+                else -> {} // Mind map, Data table — bez extra parametru
+            }
+
+            // Instrukce — pro vsechny typy
+            Spacer(modifier = Modifier.height(8.dp))
+            DetailInput(
+                value = instructions,
+                onValueChange = { instructions = it },
+                placeholder = "Vlastní instrukce (volitelné)...",
+                singleLine = false,
+                maxLines = 3,
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            DetailPill("▶ Spustit", Term.green) {
+                val opts = NotebookLmApi.GenerateOptions(
+                    instructions = instructions.takeIf { it.isNotBlank() },
+                    audioFormat = audioFormat,
+                    audioLength = audioLength,
+                    videoFormat = videoFormat,
+                    videoStyle = videoStyle,
+                    quizDifficulty = quizDifficulty,
+                    quizQuantity = quizQuantity,
+                    infographicOrientation = infraOrientation,
+                    infographicDetail = infraDetail,
+                    slideDeckFormat = slideFormat,
+                    slideDeckLength = slideLength,
+                )
+                onGenerate(type, opts)
+                onClose()
+            }
+        }
+    }
+}
+
+private fun generateTypeIcon(type: NotebookLmApi.GenerateType): String = when (type) {
+    NotebookLmApi.GenerateType.AUDIO -> "🎧"
+    NotebookLmApi.GenerateType.VIDEO -> "🎥"
+    NotebookLmApi.GenerateType.QUIZ -> "❓"
+    NotebookLmApi.GenerateType.MIND_MAP -> "🧠"
+    NotebookLmApi.GenerateType.INFOGRAPHIC -> "🖼️"
+    NotebookLmApi.GenerateType.SLIDE_DECK -> "📊"
+    NotebookLmApi.GenerateType.DATA_TABLE -> "📋"
+}
+
+@Composable
+private fun OptionRow(label: String, content: @Composable () -> Unit) {
+    Column(modifier = Modifier.padding(bottom = 6.dp)) {
+        Text(label, color = Term.textDim, fontFamily = Term.font, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { content() }
+    }
+}
+
+@Composable
+private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val chipShape = RoundedCornerShape(8.dp)
+    Text(
+        text = label,
+        color = if (selected) Term.green else Term.textDim,
+        fontFamily = Term.font,
+        fontSize = 11.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .clip(chipShape)
+            .then(
+                if (selected) Modifier
+                    .background(Term.green.copy(alpha = 0.12f))
+                    .border(1.dp, Term.green.copy(alpha = 0.3f), chipShape)
+                else Modifier.background(Term.bg)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+    )
+}
+
+@Composable
+private fun ArtifactCard(
+    art: NotebookLmApi.Artifact,
+    onPlayAudio: (String, String) -> Unit,
+    onDownloadAudio: (NotebookLmApi.Artifact) -> Unit,
+    onOpenInteractiveHtml: (String) -> Unit,
+    downloadState: DownloadState?,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val statusColor = when (art.status) {
+        NotebookLmApi.ArtifactStatus.COMPLETED -> Term.green
+        NotebookLmApi.ArtifactStatus.PROCESSING -> Term.orange
+        NotebookLmApi.ArtifactStatus.PENDING -> Term.cyan
+        NotebookLmApi.ArtifactStatus.FAILED -> Term.red
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Term.surface)
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = art.type.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = art.title,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = art.type.label,
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = 11.sp,
+                    )
+                    Text(
+                        text = "• ${art.status.label}",
+                        color = statusColor,
+                        fontFamily = Term.font,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+        }
+
+        // Akce — kompaktni ikonky
+        if (art.url != null && art.status == NotebookLmApi.ArtifactStatus.COMPLETED) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (art.type == NotebookLmApi.ArtifactType.AUDIO || art.type == NotebookLmApi.ArtifactType.VIDEO) {
+                    DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
+                }
+                if (art.type == NotebookLmApi.ArtifactType.QUIZ) {
+                    DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
+                }
+
+                val isDownloading = downloadState != null && !downloadState.done && downloadState.error == null
+                if (!isDownloading) {
+                    if (downloadState?.done == true) {
+                        // Stazeno — zelena fajfka
+                        DetailPill("✓", Term.green) {}
+                        // Otevrit v externi app
+                        val context = LocalContext.current
+                        IconPill(Icons.Default.OpenInNew, Term.orange) {
+                            if (downloadState.filePath != null) {
+                                val uri = android.net.Uri.parse(downloadState.filePath)
+                                val mime = when (art.type) {
+                                    NotebookLmApi.ArtifactType.AUDIO -> "audio/*"
+                                    NotebookLmApi.ArtifactType.VIDEO -> "video/*"
+                                    NotebookLmApi.ArtifactType.SLIDE_DECK -> "application/pdf"
+                                    NotebookLmApi.ArtifactType.INFOGRAPHIC -> "image/*"
+                                    else -> "*/*"
+                                }
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, mime)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
+                            }
+                        }
+                    } else {
+                        DetailPill("⬇", Term.cyan) { onDownloadAudio(art) }
+                    }
+                }
+            }
+        }
+
+        // Download progress
+        if (downloadState != null && !downloadState.done && downloadState.error == null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            val progressText = if (downloadState.progress < 0) "Stahuji..."
+                else "${(downloadState.progress * 100).toInt()}%"
+            Text(text = progressText, color = Term.orange, fontFamily = Term.font, fontSize = Term.fontSize)
+            Spacer(modifier = Modifier.height(4.dp))
+            if (downloadState.progress >= 0) {
+                LinearProgressIndicator(
+                    progress = { downloadState.progress },
+                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                    color = Term.cyan,
+                    trackColor = Term.border,
+                )
+            } else {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                    color = Term.cyan,
+                    trackColor = Term.border,
+                )
+            }
+        }
+
+        if (downloadState?.error != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Chyba: ${downloadState.error}",
+                color = Term.red,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOTES TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotesTab(
+    detail: DetailState,
+    onDeleteNote: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (detail.notes.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text(
+                text = "Žádné poznámky",
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(detail.notes, key = { it.id }) { note ->
+                SwipeToDismissNoteCard(note, onDeleteNote)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToDismissNoteCard(
+    note: NotebookLmApi.Note,
+    onDeleteNote: (String) -> Unit,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                confirmDelete = true
+                false
+            } else false
+        }
+    )
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            confirmButton = {
+                DetailPill("Smazat", Term.red) {
+                    onDeleteNote(note.id)
+                    confirmDelete = false
+                }
+            },
+            dismissButton = {
+                DetailPill("Zrušit", Term.textDim) { confirmDelete = false }
+            },
+            title = {
+                Text("Smazat poznámku?", color = Term.white, fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(note.title.ifBlank { note.content.take(60) }, color = Term.text,
+                    fontFamily = Term.font, fontSize = Term.fontSize)
+            },
+            containerColor = Term.surface,
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val color by animateColorAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) Term.red
+                else Term.red.copy(alpha = 0.3f),
+                label = "swipeBg",
+            )
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1.1f else 0.8f,
+                label = "swipeScale",
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+            }
+        },
+        enableDismissFromStartToEnd = false,
+    ) {
+        NoteCard(note)
+    }
+}
+
+@Composable
+private fun NoteCard(note: NotebookLmApi.Note) {
+    var expanded by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(14.dp)
+    val context = LocalContext.current
+
+    val displayTitle = note.title.ifBlank {
+        note.content.lineSequence()
+            .map { it.trimStart('#', ' ', '*', '-') }
+            .firstOrNull { it.isNotBlank() }
+            ?.take(60) ?: "Poznámka"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Term.surface)
+            .clickable { expanded = !expanded }
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (expanded) "▾" else "▸",
+                color = Term.textDim,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            Text(
+                text = displayTitle,
+                color = Term.white,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+            )
+            MicroAction("📋", Term.textDim) {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("note", note.content))
+            }
+            IconMicroAction(Icons.Default.Share, Term.textDim) {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_TEXT, note.content)
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(sendIntent, null))
+            }
+        }
+        if (expanded && note.content.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            MarkdownText(text = note.content, color = Term.text)
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHARED KOMPONENTY
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun DetailPill(
+    text: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Text(
+        text = text,
+        color = color,
+        fontFamily = Term.font,
+        fontSize = Term.fontSize,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, color.copy(alpha = 0.3f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
+}
+
+@Composable
+private fun IconMicroAction(icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier
+            .size(20.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(2.dp),
+    )
+}
+
+@Composable
+private fun IconPill(icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier
+            .size(30.dp)
+            .clip(shape)
+            .border(1.dp, color.copy(alpha = 0.3f), shape)
+            .clickable(onClick = onClick)
+            .padding(5.dp),
+    )
+}
+
+@Composable
+private fun MicroAction(icon: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text = icon,
+        color = color,
+        fontSize = 14.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 5.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun DetailInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    singleLine: Boolean = true,
+    maxLines: Int = 1,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = TextStyle(
+            color = Term.white,
+            fontFamily = Term.font,
+            fontSize = Term.fontSize,
+        ),
+        cursorBrush = SolidColor(Term.green),
+        singleLine = singleLine,
+        maxLines = maxLines,
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Term.bg)
+                    .padding(12.dp),
+            ) {
+                if (value.isEmpty()) {
+                    Text(placeholder, color = Term.textDim, fontFamily = Term.font, fontSize = Term.fontSize)
+                }
+                inner()
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
