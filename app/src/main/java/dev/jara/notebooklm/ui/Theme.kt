@@ -1,13 +1,17 @@
 package dev.jara.notebooklm.ui
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 
@@ -168,6 +172,22 @@ fun NotebookLmTheme(
             error = Gruvbox.FadedRed,
             outline = Gruvbox.Light4,
         )
+    }
+
+    // Nastavení barvy ikon a pozadí systémových barů podle motivu
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
+            // Neprůhledný status bar — app nekrvácí do systémové oblasti
+            @Suppress("DEPRECATION")
+            window.statusBarColor = if (darkTheme) 0xFF1D2021.toInt() else 0xFFEBDBB2.toInt()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = if (darkTheme) 0xFF282828.toInt() else 0xFFEBDBB2.toInt()
+        }
     }
 
     CompositionLocalProvider(LocalAppColors provides appColors) {

@@ -1,6 +1,11 @@
 package dev.jara.notebooklm.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,10 +19,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -38,6 +46,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -45,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jara.notebooklm.rpc.NotebookLmApi
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NotebookListScreen(
     notebooks: List<NotebookLmApi.Notebook>,
@@ -78,43 +89,200 @@ fun NotebookListScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // Search state (sdílený mezi bottomBar a content)
+    var query by remember { mutableStateOf("") }
+    var semanticMode by remember { mutableStateOf(false) }
+
+    // Create notebook dialog
+    var showCreateDialog by remember { mutableStateOf(false) }
+    if (showCreateDialog) {
+        CreateNotebookDialog(
+            onConfirm = { title, emoji -> onCreateNotebook(title, emoji); showCreateDialog = false },
+            onDismiss = { showCreateDialog = false },
+        )
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize().imePadding(),
+        containerColor = Term.bg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = Term.surface,
+                    contentColor = Term.text,
+                    actionColor = Term.orange,
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+        },
+        bottomBar = {
+            Column(modifier = Modifier
+                .background(Term.bg)
+                .navigationBarsPadding()
+                .animateContentSize(animationSpec = tween(250))
+            ) {
+                // ── Search bar (thumb zone) ──
+                val modeColor by animateColorAsState(
+                    targetValue = if (semanticMode) Term.purple else Term.green,
+                    animationSpec = tween(250),
+                    label = "mode_color",
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Term.bg)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (semanticMode) Term.purple.copy(alpha = 0.06f) else Term.surfaceLight)
+                        .border(1.dp, modeColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Mode toggle icon — tap to switch
+                    Text(
+                        text = if (semanticMode) "✨" else "🔍",
+                        fontSize = 18.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                semanticMode = !semanticMode
+                                if (!semanticMode) onClearSemantic()
+                            }
+                            .padding(end = 10.dp),
+                    )
+
+                    // Search input
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
+                        textStyle = TextStyle(
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        ),
+                        cursorBrush = SolidColor(modeColor),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
+                            onDone = {},
+                        ),
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        text = if (semanticMode) "zeptej se na poznámky..." else "hledat sešity...",
+                                        color = Term.textDim,
+                                        fontFamily = Term.font,
+                                        fontSize = Term.fontSize,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    // Clear + embed pill (AI mode) + sort
+                    if (query.isNotEmpty()) {
+                        Text(
+                            text = "✕",
+                            color = Term.textDim,
+                            fontSize = Term.fontSize,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { query = ""; onClearSemantic() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    // Embed pill — jen v AI režimu, kompaktní
+                    if (semanticMode && hasApiKey && embeddingStatus == null && notebooks.isNotEmpty()) {
+                        Text(
+                            text = "Embed",
+                            color = Term.cyan,
+                            fontFamily = Term.font,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Term.cyan.copy(alpha = 0.15f))
+                                .clickable { onEmbedNotebooks(null) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Sort pill
+                    Text(
+                        text = "↕ ${sortMode.label}",
+                        color = Term.orange,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Term.orange.copy(alpha = 0.12f))
+                            .clickable { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onCycleSort() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+                if (!WindowInsets.isImeVisible) {
+                    BottomActionBar(
+                        onCreateNotebook = { showCreateDialog = true },
+                        onRefresh = onRefresh,
+                        onSettings = onSettings,
+                        hasApiKey = hasApiKey,
+                        onStartDedup = { if (!dedup.running) onStartDedup() },
+                        onStartClassify = { if (!classify.running) onStartClassify() },
+                        onLogout = onLogout,
+                    )
+                }
+            }
+        },
+    ) { innerPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Term.bg)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(innerPadding)
+            .consumeWindowInsets(innerPadding)
     ) {
         // Selection mode
         var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         val selectionMode = selectedIds.isNotEmpty()
 
-        // Create notebook dialog
-        var showCreateDialog by remember { mutableStateOf(false) }
-        if (showCreateDialog) {
-            CreateNotebookDialog(
-                onConfirm = { title, emoji -> onCreateNotebook(title, emoji); showCreateDialog = false },
-                onDismiss = { showCreateDialog = false },
-            )
-        }
-        // Delete notebook confirmation
-        var deleteConfirmId by remember { mutableStateOf<String?>(null) }
-        if (deleteConfirmId != null) {
-            val nbTitle = notebooks.find { it.id == deleteConfirmId }?.title ?: ""
+        // Delete notebook confirmation (single or batch)
+        var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+        if (deleteConfirmIds.isNotEmpty()) {
+            val count = deleteConfirmIds.size
+            val displayText = if (count == 1) {
+                notebooks.find { it.id == deleteConfirmIds.first() }?.title ?: ""
+            } else {
+                "$count sešitů"
+            }
             AlertDialog(
-                onDismissRequest = { deleteConfirmId = null },
+                onDismissRequest = { deleteConfirmIds = emptySet() },
                 confirmButton = {
                     ActionPill("Smazat", Term.red) {
-                        onDeleteNotebook(deleteConfirmId!!)
-                        selectedIds = selectedIds - deleteConfirmId!!
-                        deleteConfirmId = null
+                        deleteConfirmIds.forEach { onDeleteNotebook(it) }
+                        selectedIds = selectedIds - deleteConfirmIds
+                        deleteConfirmIds = emptySet()
                     }
                 },
-                dismissButton = { ActionPill("Zrušit", Term.textDim) { deleteConfirmId = null } },
-                title = { Text("Smazat sešit?", color = Term.white, fontFamily = Term.font,
+                dismissButton = { ActionPill("Zrušit", Term.textDim) { deleteConfirmIds = emptySet() } },
+                title = { Text(
+                    if (count == 1) "Smazat sešit?" else "Smazat $count sešitů?",
+                    color = Term.white, fontFamily = Term.font,
                     fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold) },
-                text = { Text(nbTitle, color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize) },
+                text = { Text(displayText, color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize) },
                 containerColor = Term.surface,
                 shape = RoundedCornerShape(16.dp),
             )
@@ -173,13 +341,11 @@ fun NotebookListScreen(
                         },
                     )
                 }
-                if (selectedIds.size == 1) {
-                    ActionPill(
-                        text = "🗑",
-                        color = Term.red,
-                        onClick = { deleteConfirmId = selectedIds.first() },
-                    )
-                }
+                ActionPill(
+                    text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
+                    color = Term.red,
+                    onClick = { deleteConfirmIds = selectedIds },
+                )
                 ActionPill(
                     text = "✕",
                     color = Term.textDim,
@@ -187,10 +353,6 @@ fun NotebookListScreen(
                 )
             }
         }
-
-        // ── Search bar ──
-        var query by remember { mutableStateOf("") }
-        var semanticMode by remember { mutableStateOf(false) }
 
         val fulltextFiltered = remember(notebooks, query, semanticMode) {
             if (semanticMode || query.isBlank()) notebooks
@@ -322,378 +484,56 @@ fun NotebookListScreen(
                         }
                         for (nb in nbs) {
                             item(key = nb.id) {
-                                @OptIn(ExperimentalMaterial3Api::class)
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    positionalThreshold = { it * 0.4f },
-                                    confirmValueChange = { value ->
-                                        when (value) {
-                                            SwipeToDismissBoxValue.EndToStart -> {
-                                                if (hasApiKey) {
-                                                    val nbId = nb.id
-                                                    scope.launch {
-                                                        val result = snackbarHostState.showSnackbar(
-                                                            message = "AI klasifikace: ${nb.title.take(20)}",
-                                                            actionLabel = "Zpět",
-                                                            duration = SnackbarDuration.Short,
-                                                        )
-                                                        if (result != SnackbarResult.ActionPerformed) {
-                                                            onClassifySelected(setOf(nbId))
-                                                        }
-                                                    }
-                                                }
-                                                false
-                                            }
-                                            SwipeToDismissBoxValue.StartToEnd -> {
-                                                if (hasApiKey) {
-                                                    val nbId = nb.id
-                                                    scope.launch {
-                                                        val result = snackbarHostState.showSnackbar(
-                                                            message = "Embed: ${nb.title.take(20)}",
-                                                            actionLabel = "Zpět",
-                                                            duration = SnackbarDuration.Short,
-                                                        )
-                                                        if (result != SnackbarResult.ActionPerformed) {
-                                                            onEmbedNotebooks(setOf(nbId))
-                                                        }
-                                                    }
-                                                }
-                                                false
-                                            }
-                                            SwipeToDismissBoxValue.Settled -> false
-                                        }
-                                    },
-                                )
-
-                                @OptIn(ExperimentalMaterial3Api::class)
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    backgroundContent = {
-                                        val direction = dismissState.dismissDirection
-                                        val bgColor = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
-                                            SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
-                                            else -> Color.Transparent
-                                        }
-                                        val icon = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> "AI kat."
-                                            SwipeToDismissBoxValue.StartToEnd -> "Embed"
-                                            else -> ""
-                                        }
-                                        val iconColor = when (direction) {
-                                            SwipeToDismissBoxValue.EndToStart -> Term.purple
-                                            SwipeToDismissBoxValue.StartToEnd -> Term.green
-                                            else -> Term.textDim
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(bgColor)
-                                                .padding(horizontal = 24.dp),
-                                            contentAlignment = when (direction) {
-                                                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
-                                                else -> Alignment.CenterStart
-                                            },
-                                        ) {
-                                            Text(
-                                                text = icon,
-                                                color = iconColor,
-                                                fontFamily = Term.font,
-                                                fontSize = Term.fontSizeLg,
-                                                fontWeight = FontWeight.Bold,
-                                            )
-                                        }
-                                    },
-                                    content = {
-                                        NotebookCard(
-                                            nb = nb,
-                                            isFavorite = nb.id in favorites,
-                                            category = null,
-                                            isSelected = nb.id in selectedIds,
-                                            selectionMode = selectionMode,
-                                            onClick = {
-                                                if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
-                                                else onNotebookClick(nb)
-                                            },
-                                            onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
-                                            onToggleFavorite = { onToggleFavorite(nb.id) },
-                                        )
-                                    },
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    itemsIndexed(displayList) { _, nb ->
-                        @OptIn(ExperimentalMaterial3Api::class)
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { it * 0.4f },
-                            confirmValueChange = { value ->
-                                when (value) {
-                                    SwipeToDismissBoxValue.EndToStart -> {
-                                        if (hasApiKey) {
-                                            val nbId = nb.id
-                                            scope.launch {
-                                                val result = snackbarHostState.showSnackbar(
-                                                    message = "AI klasifikace: ${nb.title.take(20)}",
-                                                    actionLabel = "Zpět",
-                                                    duration = SnackbarDuration.Short,
-                                                )
-                                                if (result != SnackbarResult.ActionPerformed) {
-                                                    onClassifySelected(setOf(nbId))
-                                                }
-                                            }
-                                        }
-                                        false
-                                    }
-                                    SwipeToDismissBoxValue.StartToEnd -> {
-                                        if (hasApiKey) {
-                                            val nbId = nb.id
-                                            scope.launch {
-                                                val result = snackbarHostState.showSnackbar(
-                                                    message = "Embed: ${nb.title.take(20)}",
-                                                    actionLabel = "Zpět",
-                                                    duration = SnackbarDuration.Short,
-                                                )
-                                                if (result != SnackbarResult.ActionPerformed) {
-                                                    onEmbedNotebooks(setOf(nbId))
-                                                }
-                                            }
-                                        }
-                                        false
-                                    }
-                                    SwipeToDismissBoxValue.Settled -> false
-                                }
-                            },
-                        )
-
-                        @OptIn(ExperimentalMaterial3Api::class)
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = {
-                                val direction = dismissState.dismissDirection
-                                val bgColor = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
-                                    SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
-                                    else -> Color.Transparent
-                                }
-                                val icon = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> "AI kat."
-                                    SwipeToDismissBoxValue.StartToEnd -> "Embed"
-                                    else -> ""
-                                }
-                                val iconColor = when (direction) {
-                                    SwipeToDismissBoxValue.EndToStart -> Term.purple
-                                    SwipeToDismissBoxValue.StartToEnd -> Term.green
-                                    else -> Term.textDim
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(bgColor)
-                                        .padding(horizontal = 24.dp),
-                                    contentAlignment = when (direction) {
-                                        SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
-                                        else -> Alignment.CenterStart
-                                    },
-                                ) {
-                                    Text(
-                                        text = icon,
-                                        color = iconColor,
-                                        fontFamily = Term.font,
-                                        fontSize = Term.fontSizeLg,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                            },
-                            content = {
-                                NotebookCard(
+                                SwipeableNotebookItem(
                                     nb = nb,
                                     isFavorite = nb.id in favorites,
-                                    category = categories[nb.id],
+                                    category = null,
                                     isSelected = nb.id in selectedIds,
                                     selectionMode = selectionMode,
+                                    hasApiKey = hasApiKey,
+                                    haptic = haptic,
+                                    scope = scope,
+                                    snackbarHostState = snackbarHostState,
                                     onClick = {
                                         if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
                                         else onNotebookClick(nb)
                                     },
                                     onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
                                     onToggleFavorite = { onToggleFavorite(nb.id) },
+                                    onClassify = { onClassifySelected(setOf(nb.id)) },
+                                    onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
                                 )
+                            }
+                        }
+                    }
+                } else {
+                    itemsIndexed(displayList) { _, nb ->
+                        SwipeableNotebookItem(
+                            nb = nb,
+                            isFavorite = nb.id in favorites,
+                            category = categories[nb.id],
+                            isSelected = nb.id in selectedIds,
+                            selectionMode = selectionMode,
+                            hasApiKey = hasApiKey,
+                            haptic = haptic,
+                            scope = scope,
+                            snackbarHostState = snackbarHostState,
+                            onClick = {
+                                if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
+                                else onNotebookClick(nb)
                             },
+                            onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
+                            onToggleFavorite = { onToggleFavorite(nb.id) },
+                            onClassify = { onClassifySelected(setOf(nb.id)) },
+                            onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
                         )
                     }
                 }
             }
         }
 
-        // ── Embed all (thumb zone) ──
-        if (semanticMode && hasApiKey && embeddingStatus == null && notebooks.isNotEmpty()) {
-            Text(
-                text = "Embed všechny sešity",
-                color = Term.cyan,
-                fontFamily = Term.font,
-                fontSize = Term.fontSizeLg,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Term.surfaceLight)
-                    .clickable { onEmbedNotebooks(null) }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            )
-        }
-
-        // ── Search mode toggle (thumb zone) ──
-        val modeColor by animateColorAsState(
-            targetValue = if (semanticMode) Term.purple else Term.green,
-            animationSpec = tween(250),
-            label = "mode_color",
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Term.bg)
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // Segmented control — fulltext / AI
-            val ftShape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
-            Text(
-                text = "🔍 Text",
-                color = if (!semanticMode) Term.green else Term.textDim,
-                fontFamily = Term.font,
-                fontSize = 12.sp,
-                fontWeight = if (!semanticMode) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier
-                    .clip(ftShape)
-                    .then(
-                        if (!semanticMode) Modifier
-                            .background(Term.green.copy(alpha = 0.15f))
-                            .border(1.dp, Term.green.copy(alpha = 0.3f), ftShape)
-                        else Modifier.background(Term.surfaceLight)
-                    )
-                    .clickable { if (semanticMode) { semanticMode = false; onClearSemantic() } }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-            val aiShape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)
-            Text(
-                text = "🧠 AI",
-                color = if (semanticMode) Term.purple else Term.textDim,
-                fontFamily = Term.font,
-                fontSize = 12.sp,
-                fontWeight = if (semanticMode) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier
-                    .clip(aiShape)
-                    .then(
-                        if (semanticMode) Modifier
-                            .background(Term.purple.copy(alpha = 0.15f))
-                            .border(1.dp, Term.purple.copy(alpha = 0.3f), aiShape)
-                        else Modifier.background(Term.surfaceLight)
-                    )
-                    .clickable { if (!semanticMode) semanticMode = true }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
-
-        // ── Search input (thumb zone) ──
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Term.bg)
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (semanticMode) Term.purple.copy(alpha = 0.08f) else Term.surfaceLight)
-                .border(1.dp, modeColor.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
-                textStyle = TextStyle(
-                    color = Term.white,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                ),
-                cursorBrush = SolidColor(if (semanticMode) Term.purple else Term.green),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(
-                    onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
-                    onDone = {},
-                ),
-                decorationBox = { inner ->
-                    Box {
-                        if (query.isEmpty()) {
-                            Text(
-                                text = if (semanticMode) "sémantické hledání..." else "hledat sešity...",
-                                color = Term.textDim,
-                                fontFamily = Term.font,
-                                fontSize = Term.fontSize,
-                            )
-                        }
-                        inner()
-                    }
-                },
-                modifier = Modifier.weight(1f),
-            )
-            if (query.isNotEmpty()) {
-                Text(
-                    text = "✕",
-                    color = Term.textDim,
-                    fontSize = Term.fontSize,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { query = ""; onClearSemantic() }
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            // Sort pill
-            Text(
-                text = "↕ ${sortMode.label}",
-                color = Term.orange,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Term.orange.copy(alpha = 0.12f))
-                    .clickable { onCycleSort() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
-
-        // ── Bottom action bar ──
-        BottomActionBar(
-            onCreateNotebook = { showCreateDialog = true },
-            onRefresh = onRefresh,
-            onSettings = onSettings,
-            hasApiKey = hasApiKey,
-            onStartDedup = { if (!dedup.running) onStartDedup() },
-            onStartClassify = { if (!classify.running) onStartClassify() },
-            onLogout = onLogout,
-        )
-    }
-    SnackbarHost(
-        hostState = snackbarHostState,
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 140.dp),
-    ) { data ->
-        Snackbar(
-            snackbarData = data,
-            containerColor = Term.surface,
-            contentColor = Term.text,
-            actionColor = Term.orange,
-            shape = RoundedCornerShape(12.dp),
-        )
-    }
-    } // Box
+    } // Column
+    } // Scaffold
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -716,31 +556,6 @@ private fun ActionPill(text: String, color: androidx.compose.ui.graphics.Color, 
     )
 }
 
-@Composable
-private fun SearchModePill(
-    text: String,
-    active: Boolean,
-    activeColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = text,
-        color = if (active) activeColor else Term.textDim,
-        fontFamily = Term.font,
-        fontSize = Term.fontSize,
-        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .then(
-                if (active) Modifier
-                    .background(activeColor.copy(alpha = 0.12f))
-                    .border(1.dp, activeColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                else Modifier
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
-}
 
 @Composable
 private fun StatusBar(
@@ -872,6 +687,133 @@ private fun NotebookCard(
             modifier = Modifier.padding(start = 4.dp),
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableNotebookItem(
+    nb: NotebookLmApi.Notebook,
+    isFavorite: Boolean,
+    category: String?,
+    isSelected: Boolean,
+    selectionMode: Boolean,
+    hasApiKey: Boolean,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onClassify: () -> Unit,
+    onEmbed: () -> Unit,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { false },
+    )
+
+    // Spusť akci JEN když fyzický tah překročí práh
+    // progress=1.0 skok = velocity animace, ne skutečný tah → ignorovat
+    LaunchedEffect(Unit) {
+        var triggered = false
+        var maxDragProgress = 0f
+        snapshotFlow { dismissState.progress to dismissState.dismissDirection }
+            .collect { (progress, direction) ->
+                // Sleduj maximální progress během skutečného tahu (ne velocity animace)
+                if (progress > maxDragProgress && progress < 1.0f) {
+                    maxDragProgress = progress
+                }
+                if (maxDragProgress >= 0.4f && !triggered && direction != SwipeToDismissBoxValue.Settled) {
+                    triggered = true
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (hasApiKey) {
+                        when (direction) {
+                            SwipeToDismissBoxValue.EndToStart -> {
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "AI klasifikace: ${nb.title.take(20)}",
+                                        actionLabel = "Zpět",
+                                        duration = SnackbarDuration.Short,
+                                    )
+                                    if (result != SnackbarResult.ActionPerformed) {
+                                        onClassify()
+                                    }
+                                }
+                            }
+                            SwipeToDismissBoxValue.StartToEnd -> {
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Embed: ${nb.title.take(20)}",
+                                        actionLabel = "Zpět",
+                                        duration = SnackbarDuration.Short,
+                                    )
+                                    if (result != SnackbarResult.ActionPerformed) {
+                                        onEmbed()
+                                    }
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+                if (progress < 0.05f) {
+                    triggered = false
+                    maxDragProgress = 0f
+                }
+            }
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val bgColor = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> Term.purple.copy(alpha = 0.15f)
+                SwipeToDismissBoxValue.StartToEnd -> Term.green.copy(alpha = 0.15f)
+                else -> Color.Transparent
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> "AI kat."
+                SwipeToDismissBoxValue.StartToEnd -> "Embed"
+                else -> ""
+            }
+            val iconColor = when (direction) {
+                SwipeToDismissBoxValue.EndToStart -> Term.purple
+                SwipeToDismissBoxValue.StartToEnd -> Term.green
+                else -> Term.textDim
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(bgColor)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = when (direction) {
+                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                    else -> Alignment.CenterStart
+                },
+            ) {
+                Text(
+                    text = icon,
+                    color = iconColor,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        content = {
+            NotebookCard(
+                nb = nb,
+                isFavorite = isFavorite,
+                category = category,
+                isSelected = isSelected,
+                selectionMode = selectionMode,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onToggleFavorite = onToggleFavorite,
+            )
+        },
+    )
 }
 
 /** Toggle element v Set */
@@ -1054,8 +996,7 @@ private fun BottomActionBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Term.surface)
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
