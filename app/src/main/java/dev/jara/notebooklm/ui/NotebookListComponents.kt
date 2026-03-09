@@ -520,8 +520,6 @@ internal fun BottomActionBar(
     sortLabel: String,
     onEmbedAll: () -> Unit,
     onLogout: () -> Unit,
-    filterCount: Int,
-    onFilter: () -> Unit,
     onScanSourcesAll: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -537,11 +535,6 @@ internal fun BottomActionBar(
         BottomAction("＋", "Nový", Term.green) { onCreateNotebook() }
         BottomAction("⟳", "Sync", Term.cyan) { onRefresh() }
         BottomAction("↕", sortLabel, Term.orange) { onCycleSort() }
-        BottomAction(
-            icon = if (filterCount > 0) "◉" else "☷",
-            label = if (filterCount > 0) "Filtr ($filterCount)" else "Filtr",
-            color = if (filterCount > 0) Term.cyan else Term.textDim,
-        ) { onFilter() }
         BottomAction("⚙", "Nastavení", Term.textDim) { onSettings() }
         Box {
             BottomAction("⋯", "", Term.textDim) { menuExpanded = true }

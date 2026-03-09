@@ -1,14 +1,23 @@
 package dev.jara.notebooklm.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,14 +99,6 @@ fun NotebookListScreen(
 
     // Create notebook dialog
     var showCreateDialog by remember { mutableStateOf(false) }
-    if (showFilterSheet) {
-        FacetFilterSheet(
-            facets = facets,
-            currentFilter = facetFilter,
-            onFilterChange = onFacetFilterChange,
-            onDismiss = { showFilterSheet = false },
-        )
-    }
 
     if (showCreateDialog) {
         CreateNotebookDialog(
@@ -216,14 +217,13 @@ fun NotebookListScreen(
                         sortLabel = sortMode.label,
                         onEmbedAll = { onEmbedNotebooks(null) },
                         onLogout = onLogout,
-                        filterCount = facetFilter.activeCount,
-                        onFilter = { showFilterSheet = true },
                         onScanSourcesAll = { onScanSources(null) },
                     )
                 }
             }
         },
     ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -304,74 +304,89 @@ fun NotebookListScreen(
 
         // ── Selection action bar ──
         if (selectionMode) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Term.surfaceLight)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .background(Term.surfaceLight),
             ) {
-                Text(
-                    text = "${selectedIds.size}×",
-                    color = Term.cyan,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                    fontWeight = FontWeight.Bold,
-                )
-                ActionPill(
-                    text = if (selectedIds.size == notebooks.size) "Žádný" else "Vše",
-                    color = Term.cyan,
-                    onClick = {
-                        selectedIds = if (selectedIds.size == notebooks.size) emptySet()
-                        else notebooks.map { it.id }.toSet()
-                    },
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                if (hasApiKey) {
+                // Horní řádek: počet + vše/žádný + zavřít
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${selectedIds.size}×",
+                        color = Term.cyan,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSizeLg,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     ActionPill(
-                        text = "Embed",
-                        color = Term.green,
+                        text = if (selectedIds.size == notebooks.size) "Žádný" else "Vše",
+                        color = Term.cyan,
                         onClick = {
-                            onEmbedNotebooks(selectedIds)
-                            selectedIds = emptySet()
+                            selectedIds = if (selectedIds.size == notebooks.size) emptySet()
+                            else notebooks.map { it.id }.toSet()
                         },
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     ActionPill(
-                        text = "AI kat.",
-                        color = Term.purple,
-                        onClick = {
-                            onClassifySelected(selectedIds)
-                            selectedIds = emptySet()
-                        },
-                    )
-                    ActionPill(
-                        text = "Zdroje",
-                        color = Color(0xFF7AA2F7),
-                        onClick = {
-                            onScanSources(selectedIds)
-                            selectedIds = emptySet()
-                        },
+                        text = "✕",
+                        color = Term.textDim,
+                        onClick = { selectedIds = emptySet() },
                     )
                 }
-                ActionPill(
-                    text = "Dedup",
-                    color = Term.red,
-                    onClick = {
-                        onDedupSelected(selectedIds)
-                        selectedIds = emptySet()
-                    },
-                )
-                ActionPill(
-                    text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
-                    color = Term.red,
-                    onClick = { deleteConfirmIds = selectedIds },
-                )
-                ActionPill(
-                    text = "✕",
-                    color = Term.textDim,
-                    onClick = { selectedIds = emptySet() },
-                )
+                // Spodní řádek: scrollovatelné batch akce
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (hasApiKey) {
+                        ActionPill(
+                            text = "Embed",
+                            color = Term.green,
+                            onClick = {
+                                onEmbedNotebooks(selectedIds)
+                                selectedIds = emptySet()
+                            },
+                        )
+                        ActionPill(
+                            text = "AI kat.",
+                            color = Term.purple,
+                            onClick = {
+                                onClassifySelected(selectedIds)
+                                selectedIds = emptySet()
+                            },
+                        )
+                        ActionPill(
+                            text = "Zdroje",
+                            color = Color(0xFF7AA2F7),
+                            onClick = {
+                                onScanSources(selectedIds)
+                                selectedIds = emptySet()
+                            },
+                        )
+                    }
+                    ActionPill(
+                        text = "Dedup",
+                        color = Term.red,
+                        onClick = {
+                            onDedupSelected(selectedIds)
+                            selectedIds = emptySet()
+                        },
+                    )
+                    ActionPill(
+                        text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
+                        color = Term.red,
+                        onClick = { deleteConfirmIds = selectedIds },
+                    )
+                }
             }
         }
 
@@ -591,6 +606,73 @@ fun NotebookListScreen(
         }
 
     } // Column
+
+        // Edge tab — malý prvek na pravém okraji (spodní třetina)
+        // Viditelný JEN když panel NENÍ otevřený a jsou facety k filtrování
+        if (!showFilterSheet && facets.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset(y = 80.dp)
+                    .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
+                    .background(Term.surface)
+                    .border(
+                        DS.borderWidth,
+                        Term.border.copy(alpha = DS.borderAlpha),
+                        RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp),
+                    )
+                    .clickable { showFilterSheet = true }
+                    .padding(vertical = 16.dp, horizontal = 6.dp),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text("☷", color = if (facetFilter.activeCount > 0) Term.cyan else Term.textDim, fontSize = 16.sp)
+                    if (facetFilter.activeCount > 0) {
+                        Text(
+                            "${facetFilter.activeCount}",
+                            color = Term.cyan,
+                            fontFamily = Term.font,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Scrim + Side panel
+        AnimatedVisibility(
+            visible = showFilterSheet,
+            enter = fadeIn(tween(250)),
+            exit = fadeOut(tween(250)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.15f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { showFilterSheet = false },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showFilterSheet,
+            enter = slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it },
+            exit = slideOutHorizontally(tween(250, easing = FastOutSlowInEasing)) { it },
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            FacetFilterPanel(
+                facets = facets,
+                currentFilter = facetFilter,
+                onFilterChange = onFacetFilterChange,
+                onDismiss = { showFilterSheet = false },
+            )
+        }
+    } // Box
     } // Scaffold
 }
 

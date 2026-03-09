@@ -1,5 +1,6 @@
 package dev.jara.notebooklm.ui
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,75 +11,113 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+private val panelShape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun FacetFilterSheet(
+internal fun FacetFilterPanel(
     facets: Map<String, NotebookFacets>,
     currentFilter: FacetFilter,
     onFilterChange: (FacetFilter) -> Unit,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Sekce, které mají být defaultně rozbalené
+    val expandedSections = remember { mutableStateSetOf("Téma") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Term.surface,
-        contentColor = Term.text,
-        dragHandle = {
-            // Vlastní drag handle
+    // Extrahuj distinct hodnoty z facets mapy
+    val allTopics = remember(facets) { facets.values.map { it.topic }.filter { it.isNotEmpty() }.distinct().sorted() }
+    val allFormats = remember(facets) { facets.values.map { it.format }.filter { it.isNotEmpty() }.distinct().sorted() }
+    val allPurposes = remember(facets) { facets.values.map { it.purpose }.filter { it.isNotEmpty() }.distinct().sorted() }
+    val allDomains = remember(facets) { facets.values.map { it.domain }.filter { it.isNotEmpty() }.distinct().sorted() }
+    val allFreshnesses = remember(facets) { facets.values.map { it.freshness }.filter { it.isNotEmpty() }.distinct().sorted() }
+
+    val sections = listOf(
+        Triple("Téma", allTopics, Term.green),
+        Triple("Formát", allFormats, Term.cyan),
+        Triple("Účel", allPurposes, Term.orange),
+        Triple("Doména", allDomains, Term.purple),
+        Triple("Aktuálnost", allFreshnesses, Term.textDim),
+    )
+
+    // Počet aktivních filtrů celkem
+    val activeCount = currentFilter.topics.size + currentFilter.formats.size +
+        currentFilter.purposes.size + currentFilter.domains.size + currentFilter.freshnesses.size
+
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .fillMaxWidth(0.75f)
+            .shadow(8.dp, panelShape)
+            .clip(panelShape)
+            .background(Term.surface.copy(alpha = 0.97f))
+            .border(
+                width = 1.dp,
+                color = Term.border.copy(alpha = 0.3f),
+                shape = panelShape,
+            ),
+    ) {
+        Column(modifier = Modifier.fillMaxHeight()) {
+            // ── Header ──
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier
-                        .width(32.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Term.textDim)
-                )
-                Spacer(Modifier.height(12.dp))
-                // Header
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Filtr",
+                        text = "☷ Filtr",
                         color = Term.white,
                         fontFamily = Term.font,
                         fontSize = Term.fontSizeXl,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.weight(1f))
-                    if (!currentFilter.isEmpty) {
+                    if (activeCount > 0) {
+                        // Badge s počtem
                         Text(
-                            text = "Vymazat vše",
+                            text = "$activeCount",
+                            color = Term.bg,
+                            fontFamily = Term.font,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(DS.chipRadius))
+                                .background(Term.cyan)
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "Vymazat",
                             color = Term.red,
                             fontFamily = Term.font,
                             fontSize = Term.fontSize,
@@ -89,106 +128,144 @@ internal fun FacetFilterSheet(
                         )
                     }
                 }
+                Spacer(Modifier.height(4.dp))
+                // Oddělovací linka pod headerem
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Term.border.copy(alpha = 0.2f))
+                )
+            }
+
+            // ── Obsah — akordeonové sekce ──
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                for ((label, values, color) in sections) {
+                    if (values.isEmpty()) continue
+
+                    val selected = when (label) {
+                        "Téma" -> currentFilter.topics
+                        "Formát" -> currentFilter.formats
+                        "Účel" -> currentFilter.purposes
+                        "Doména" -> currentFilter.domains
+                        "Aktuálnost" -> currentFilter.freshnesses
+                        else -> emptySet()
+                    }
+
+                    val isExpanded = label in expandedSections
+
+                    AccordionSection(
+                        label = label,
+                        values = values,
+                        selected = selected,
+                        color = color,
+                        expanded = isExpanded,
+                        onToggleExpand = {
+                            if (isExpanded) expandedSections.remove(label)
+                            else expandedSections.add(label)
+                        },
+                        onToggleValue = { value ->
+                            val newFilter = when (label) {
+                                "Téma" -> currentFilter.copy(topics = currentFilter.topics.toggle(value))
+                                "Formát" -> currentFilter.copy(formats = currentFilter.formats.toggle(value))
+                                "Účel" -> currentFilter.copy(purposes = currentFilter.purposes.toggle(value))
+                                "Doména" -> currentFilter.copy(domains = currentFilter.domains.toggle(value))
+                                "Aktuálnost" -> currentFilter.copy(freshnesses = currentFilter.freshnesses.toggle(value))
+                                else -> currentFilter
+                            }
+                            onFilterChange(newFilter)
+                        },
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
             }
-        },
-    ) {
-        // Extrahuj distinct hodnoty z facets mapy
-        val allTopics = remember(facets) { facets.values.map { it.topic }.filter { it.isNotEmpty() }.distinct().sorted() }
-        val allFormats = remember(facets) { facets.values.map { it.format }.filter { it.isNotEmpty() }.distinct().sorted() }
-        val allPurposes = remember(facets) { facets.values.map { it.purpose }.filter { it.isNotEmpty() }.distinct().sorted() }
-        val allDomains = remember(facets) { facets.values.map { it.domain }.filter { it.isNotEmpty() }.distinct().sorted() }
-        val allFreshnesses = remember(facets) { facets.values.map { it.freshness }.filter { it.isNotEmpty() }.distinct().sorted() }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp)
-                .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            FacetSection(
-                label = "Téma",
-                values = allTopics,
-                selected = currentFilter.topics,
-                color = Term.green,
-                onToggle = { value ->
-                    onFilterChange(currentFilter.copy(topics = currentFilter.topics.toggle(value)))
-                },
-            )
-            FacetSection(
-                label = "Formát",
-                values = allFormats,
-                selected = currentFilter.formats,
-                color = Term.cyan,
-                onToggle = { value ->
-                    onFilterChange(currentFilter.copy(formats = currentFilter.formats.toggle(value)))
-                },
-            )
-            FacetSection(
-                label = "Účel",
-                values = allPurposes,
-                selected = currentFilter.purposes,
-                color = Term.orange,
-                onToggle = { value ->
-                    onFilterChange(currentFilter.copy(purposes = currentFilter.purposes.toggle(value)))
-                },
-            )
-            FacetSection(
-                label = "Doména",
-                values = allDomains,
-                selected = currentFilter.domains,
-                color = Term.purple,
-                onToggle = { value ->
-                    onFilterChange(currentFilter.copy(domains = currentFilter.domains.toggle(value)))
-                },
-            )
-            FacetSection(
-                label = "Aktuálnost",
-                values = allFreshnesses,
-                selected = currentFilter.freshnesses,
-                color = Term.textDim,
-                onToggle = { value ->
-                    onFilterChange(currentFilter.copy(freshnesses = currentFilter.freshnesses.toggle(value)))
-                },
-            )
+            // ── Footer ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                ActionPill("Zavřít", Term.textDim) { onDismiss() }
+            }
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FacetSection(
+private fun AccordionSection(
     label: String,
     values: List<String>,
     selected: Set<String>,
     color: Color,
-    onToggle: (String) -> Unit,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onToggleValue: (String) -> Unit,
 ) {
-    if (values.isEmpty()) return
-
-    Column {
-        Text(
-            text = label,
-            color = color,
-            fontFamily = Term.font,
-            fontSize = Term.fontSize,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+    ) {
+        // Hlavička sekce
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(DS.chipRadius))
+                .clickable(onClick = onToggleExpand)
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            for (value in values) {
-                FacetChip(
-                    text = value,
-                    selected = value in selected,
+            Text(
+                text = label,
+                color = color,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                fontWeight = FontWeight.Bold,
+            )
+            if (selected.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "${selected.size}",
                     color = color,
-                    onClick = { onToggle(value) },
+                    fontFamily = Term.font,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
                 )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = if (expanded) "▾" else "▸",
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+        }
+
+        // Obsah (chipy) — jen pokud rozbaleno
+        if (expanded) {
+            FlowRow(
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (value in values) {
+                    FacetChip(
+                        text = value,
+                        selected = value in selected,
+                        color = color,
+                        onClick = { onToggleValue(value) },
+                    )
+                }
             }
         }
     }
@@ -201,10 +278,11 @@ private fun FacetChip(
     color: Color,
     onClick: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     val shape = RoundedCornerShape(DS.chipRadius)
-    val bgColor = if (selected) color.copy(alpha = 0.15f) else Color.Transparent
+    val bgColor = if (selected) color.copy(alpha = 0.10f) else Color.Transparent
     val borderColor = if (selected) color.copy(alpha = 0.5f) else Term.border.copy(alpha = DS.borderAlpha)
-    val textColor = if (selected) color else Term.text
+    val textColor = if (selected) color else Term.textDim
 
     Text(
         text = text,
@@ -216,7 +294,10 @@ private fun FacetChip(
             .clip(shape)
             .border(DS.borderWidth, borderColor, shape)
             .background(bgColor)
-            .clickable(onClick = onClick)
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
