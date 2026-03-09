@@ -369,6 +369,97 @@ labs.language.tailwind.mobile.app/
 └── watch_next/         — "Watch Next" doporučení
 ```
 
+## Mapování na naši app (RpcMethod.kt)
+
+### Již implementované (18 metod → nyní 62)
+| Naše jméno | RPC ID | gRPC metoda | Stav |
+|------------|--------|-------------|------|
+| LIST_NOTEBOOKS | `wXbhsf` | ListRecentlyViewedProjects | ✅ implementováno |
+| CREATE_NOTEBOOK | `CCqFvf` | CreateProject | ✅ implementováno |
+| GET_NOTEBOOK | `rLM1Ne` | GetProject | ✅ implementováno |
+| RENAME_NOTEBOOK | `s0tc2d` | MutateProject | ✅ implementováno |
+| DELETE_NOTEBOOK | `WWINqb` | DeleteProjects | ✅ implementováno |
+| ADD_SOURCE | `izAoDd` | AddSources | ✅ implementováno |
+| DELETE_SOURCE | `tGMBJ` | DeleteSources | ✅ implementováno |
+| GET_SOURCE | `hizoJc` | LoadSource | ✅ implementováno |
+| SUMMARIZE | `VfAZjd` | GenerateNotebookGuide | ✅ implementováno |
+| LIST_ARTIFACTS | `gArtLc` | ListArtifacts | ✅ implementováno |
+| CREATE_NOTE | `CYK0Xb` | CreateNote | ✅ implementováno |
+| UPDATE_NOTE | `cYAfTb` | MutateNote | ✅ implementováno |
+| DELETE_NOTE | `AH0mwd` | DeleteNotes | ✅ implementováno |
+| GET_NOTES | `cFji9` | GetNotes | ✅ implementováno |
+| DELETE_ARTIFACT | `V5N4be` | DeleteArtifact | ✅ implementováno |
+| CREATE_ARTIFACT | `R7cb6c` | CreateArtifact | ✅ implementováno |
+| GET_ARTIFACT | `v9rmvd` | GetArtifact | ✅ implementováno |
+| GET_CONVERSATION_TURNS | `khqZz` | ListChatTurns | ✅ implementováno |
+
+### Nově objevené — high priority
+| RPC ID | gRPC metoda | Proč je důležitá |
+|--------|-------------|------------------|
+| `laWbsf` | **GenerateFreeFormStreamed** | Streaming chat — hlavní chatovací endpoint |
+| `Rytqqe` | **GenerateArtifact** | AI generování artefaktů (Studio tab) |
+| `KmcKPe` | **DeriveArtifact** | Odvození nového artefaktu z existujícího |
+| `rc3d8d` | **UpdateArtifact** | Editace artefaktu |
+| `sqTeoe` | **GetArtifactCustomizationChoices** | Dostupné customizace pro artefakty |
+| `hPTbtc` | **ListChatSessions** | Seznam chat sessions |
+| `J7Gthc` | **DeleteChatTurns** | Mazání chatových zpráv |
+| `te3DCe` | **CopyProject** | Kopírování notebooku |
+| `b7Wfje` | **MutateSource** | Úprava zdroje (přejmenování atd.) |
+| `FLmJqe` | **RefreshSource** | Obnovení zdroje z URL |
+| `tr032e` | **GenerateDocumentGuides** | AI průvodce dokumentem |
+| `QDyure` | **ShareProject** | Sdílení notebooku |
+| `Krh3pd` | **ExportToDrive** | Export do Google Drive |
+
+### Nově objevené — medium priority
+| RPC ID | gRPC metoda | Proč |
+|--------|-------------|------|
+| `Es3dTe` | DiscoverSources | Auto-discovery zdrojů |
+| `otmP3b` | GeneratePromptSuggestions | AI návrhy promptů pro chat |
+| `ciyUvf` | GenerateReportSuggestions | AI návrhy reportů |
+| `likKIe` | ExecuteWritingFunction | Psací funkce |
+| `uK8f7c` | GenerateMagicView | Magic view |
+| `EnujNd` | ListModelOptions | Seznam AI modelů |
+| `yR9Yof` | CheckSourceFreshness | Kontrola aktuálnosti zdrojů |
+| `yyryJe` | ActOnSources | Batch akce nad zdroji |
+
+## Metodologie extrakce
+
+### 1. Flutter APK (mobilní app)
+```bash
+# Stažení APK z telefonu
+adb shell pm path com.google.android.apps.labs.language.tailwind
+adb pull /data/app/.../base.apk
+adb pull /data/app/.../split_config.arm64_v8a.apk
+
+# Extrakce stringů z Dart AOT snapshot (17MB)
+strings libNotebookLM_prod_android_library_flutter_artifacts.so > strings.txt
+# → 40,256 stringů → filtrování regex patterny → gRPC metody, enumy, typy
+
+# Java decompile přes JADX
+jadx base.apk -d jadx-out/
+# → SSOAuthPlugin.java, AgentCommsWebRtcSession.java atd.
+```
+
+### 2. Web JS bundle
+```bash
+# Stažení hlavního JS bundlu (veřejný, nepotřebuje auth)
+curl -sL "https://www.gstatic.com/_/mss/boq-labs-tailwind/_/js/k=boq-labs-tailwind.LabsTailwindUi.cs.VP9SH7_wCvQ.es6.O/d=1/excm=_b/ed=1/dg=0/br=1/wt=2/ujg=1/rs=.../m=_b" > bundle.js
+# → 2.5MB minifikovaný JS
+
+# Extrakce RPC definic
+grep -oP 'new _\.Tz\("[^"]+",\s*[^,]+,\s*\[[^\]]*?"/[^"]*"[^\]]*\]' bundle.js
+# → 62 RPC metod s IDčky a service.method names
+```
+
+### 3. Pattern v JS bundlu
+```javascript
+// Každé RPC je registrované jako:
+new _.Tz("RPC_ID", ResponseProtoClass, [
+    _.Mz, true/false,     // true = GET, false = POST
+    _.Oz, "/ServiceName.MethodName"
+])
+```
+
 ## Klíčové features které naše app nemá
 1. **Studio tab** — generování 11 typů artefaktů (audio, video, flashcards, quiz, slides, infographic, report, app, table, mindmap, fantasy map)
 2. **Source Discovery** — automatické objevení relevantních zdrojů
