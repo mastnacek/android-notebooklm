@@ -104,7 +104,7 @@ fun NotebookListScreen(
     val listState = rememberLazyListState()
     var previousScrollOffset by remember { mutableIntStateOf(0) }
     var previousFirstVisibleItem by remember { mutableIntStateOf(0) }
-    var headerVisible by remember { mutableStateOf(true) }
+    var barsVisible by remember { mutableStateOf(true) }
 
     val scrollDirection by remember {
         derivedStateOf {
@@ -122,12 +122,12 @@ fun NotebookListScreen(
             when {
                 scrollingDown -> false // hide
                 scrollingUp -> true    // show
-                else -> headerVisible  // keep current
+                else -> barsVisible    // keep current
             }
         }
     }
 
-    LaunchedEffect(scrollDirection) { headerVisible = scrollDirection }
+    LaunchedEffect(scrollDirection) { barsVisible = scrollDirection }
 
     // Create notebook dialog
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -155,6 +155,11 @@ fun NotebookListScreen(
             }
         },
         bottomBar = {
+            AnimatedVisibility(
+                visible = barsVisible || WindowInsets.isImeVisible,
+                enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it },
+                exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it },
+            ) {
             Column(modifier = Modifier
                 .background(Term.bg)
                 .navigationBarsPadding()
@@ -253,6 +258,7 @@ fun NotebookListScreen(
                     )
                 }
             }
+            } // AnimatedVisibility
         },
     ) { innerPadding ->
     Box(modifier = Modifier.fillMaxSize()) {
@@ -296,10 +302,10 @@ fun NotebookListScreen(
         }
 
         // ── Header (scroll-hide) ──
-        LaunchedEffect(selectionMode) { if (selectionMode) headerVisible = true }
+        LaunchedEffect(selectionMode) { if (selectionMode) barsVisible = true }
 
         AnimatedVisibility(
-            visible = headerVisible,
+            visible = barsVisible,
             enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
             exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
         ) {
@@ -671,10 +677,12 @@ fun NotebookListScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text("☷", color = if (facetFilter.activeCount > 0) Term.cyan else Term.textDim, fontSize = 16.sp)
-                    if (facetFilter.activeCount > 0) {
+                    val totalSelected = facetFilter.topics.size + facetFilter.formats.size +
+                        facetFilter.purposes.size + facetFilter.domains.size + facetFilter.freshnesses.size
+                    Text("☷", color = if (totalSelected > 0) Term.cyan else Term.textDim, fontSize = 16.sp)
+                    if (totalSelected > 0) {
                         Text(
-                            "${facetFilter.activeCount}",
+                            "$totalSelected",
                             color = Term.cyan,
                             fontFamily = Term.font,
                             fontSize = 10.sp,

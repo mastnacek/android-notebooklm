@@ -183,7 +183,8 @@ internal fun FacetFilterPanel(
                         },
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                // Extra prostor, aby se dalo scrollovat až k poslední sekci
+                Spacer(Modifier.height(120.dp))
             }
 
             // ── Footer ──
