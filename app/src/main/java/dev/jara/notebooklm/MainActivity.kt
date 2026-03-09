@@ -162,6 +162,7 @@ class MainActivity : ComponentActivity() {
                         onDismissClassify = { viewModel.dismissClassify() },
                         onCreateNotebook = { title, emoji -> viewModel.createNotebook(title, emoji) },
                         onDeleteNotebook = { viewModel.deleteNotebook(it) },
+                        onRenameNotebook = { id, title -> viewModel.renameNotebook(id, title) },
                         facets = facetsState,
                         facetFilter = facetFilter,
                         onFacetFilterChange = { viewModel.setFacetFilter(it) },

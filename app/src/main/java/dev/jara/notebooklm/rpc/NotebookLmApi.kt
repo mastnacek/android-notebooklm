@@ -387,6 +387,15 @@ class NotebookLmApi(
         }
     }
 
+    /** Prejmenuje notebook */
+    suspend fun renameNotebook(notebookId: String, newTitle: String) {
+        val params = buildJsonArray {
+            add(JsonPrimitive(notebookId))
+            add(JsonPrimitive(newTitle))
+        }
+        rpcCall(RpcMethod.RENAME_NOTEBOOK, params, sourcePath = "/notebook/$notebookId")
+    }
+
     /** Smaze notebook */
     suspend fun deleteNotebook(notebookId: String) {
         val params = buildJsonArray {
@@ -434,6 +443,42 @@ class NotebookLmApi(
             Log.w(TAG, "getConversationTurns parse: ${e.message}")
         }
         return messages
+    }
+
+    /** Generuje AI navrhy otazek pro chat */
+    suspend fun getPromptSuggestions(notebookId: String): List<String> {
+        val params = buildJsonArray {
+            add(JsonPrimitive(notebookId))
+        }
+        val result = rpcCall(
+            RpcMethod.GENERATE_PROMPT_SUGGESTIONS, params,
+            sourcePath = "/notebook/$notebookId",
+        ) ?: return emptyList()
+
+        return try {
+            // Ocekavany format: [[["otazka1"], ["otazka2"], ["otazka3"]]]
+            val suggestions = mutableListOf<String>()
+            val outer = result.jsonArray
+            for (item in outer) {
+                try {
+                    // Zkus ruzne formaty — [["text"]], ["text"], nebo primy text
+                    val text = when {
+                        item is JsonPrimitive -> item.contentOrNull
+                        item.jsonArray.getOrNull(0) is JsonPrimitive ->
+                            item.jsonArray[0].jsonPrimitive.contentOrNull
+                        item.jsonArray.getOrNull(0)?.jsonArray?.getOrNull(0) is JsonPrimitive ->
+                            item.jsonArray[0].jsonArray[0].jsonPrimitive.contentOrNull
+                        else -> null
+                    }
+                    if (!text.isNullOrBlank()) suggestions.add(text)
+                } catch (_: Exception) {}
+            }
+            Log.i(TAG, "getPromptSuggestions: ${suggestions.size} suggestions")
+            suggestions.take(5)
+        } catch (e: Exception) {
+            Log.w(TAG, "getPromptSuggestions parse: ${e.message}")
+            emptyList()
+        }
     }
 
     /** Získá info o účtu + AI model */

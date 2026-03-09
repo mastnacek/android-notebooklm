@@ -80,6 +80,7 @@ data class DetailState(
     val notes: List<Note> = emptyList(),
     val chatMessages: List<ChatMessage> = emptyList(),
     val chatAnswering: Boolean = false,
+    val promptSuggestions: List<String> = emptyList(),
     val conversationId: String = java.util.UUID.randomUUID().toString(),
     val tab: DetailTab = DetailTab.CHAT,
     val audioPlayer: AudioPlayerState? = null,

@@ -78,6 +78,7 @@ fun NotebookListScreen(
     onDismissClassify: () -> Unit,
     onCreateNotebook: (String, String) -> Unit,
     onDeleteNotebook: (String) -> Unit,
+    onRenameNotebook: (String, String) -> Unit,
     facets: Map<String, NotebookFacets>,
     facetFilter: FacetFilter,
     onFacetFilterChange: (FacetFilter) -> Unit,
@@ -260,6 +261,19 @@ fun NotebookListScreen(
         var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         val selectionMode = selectedIds.isNotEmpty()
 
+        // Rename notebook dialog
+        var renameTarget by remember { mutableStateOf<Notebook?>(null) }
+        if (renameTarget != null) {
+            RenameNotebookDialog(
+                currentTitle = renameTarget!!.title,
+                onConfirm = { newTitle ->
+                    onRenameNotebook(renameTarget!!.id, newTitle)
+                    renameTarget = null
+                },
+                onDismiss = { renameTarget = null },
+            )
+        }
+
         // Delete notebook confirmation (single or batch)
         var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         if (deleteConfirmIds.isNotEmpty()) {
@@ -438,6 +452,16 @@ fun NotebookListScreen(
                             selectedIds = emptySet()
                         },
                     )
+                    if (selectedIds.size == 1) {
+                        ActionPill(
+                            text = "✏ Přejmenovat",
+                            color = Term.orange,
+                            onClick = {
+                                renameTarget = notebooks.find { it.id == selectedIds.first() }
+                                selectedIds = emptySet()
+                            },
+                        )
+                    }
                     ActionPill(
                         text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
                         color = Term.red,

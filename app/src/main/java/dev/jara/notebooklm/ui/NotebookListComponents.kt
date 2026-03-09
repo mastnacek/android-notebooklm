@@ -449,6 +449,52 @@ internal fun CreateNotebookDialog(
     )
 }
 
+@Composable
+internal fun RenameNotebookDialog(
+    currentTitle: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var title by remember { mutableStateOf(currentTitle) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            ActionPill("Uložit", Term.green) {
+                if (title.isNotBlank() && title.trim() != currentTitle) onConfirm(title.trim())
+            }
+        },
+        dismissButton = { ActionPill("Zrušit", Term.textDim) { onDismiss() } },
+        title = {
+            Text("Přejmenovat sešit", color = Term.white, fontFamily = Term.font,
+                fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            BasicTextField(
+                value = title,
+                onValueChange = { title = it },
+                textStyle = TextStyle(color = Term.white, fontFamily = Term.font, fontSize = Term.fontSizeLg),
+                cursorBrush = SolidColor(Term.green),
+                singleLine = true,
+                decorationBox = { inner ->
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Term.bg)
+                            .padding(12.dp)
+                    ) {
+                        inner()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        containerColor = Term.surface,
+        shape = RoundedCornerShape(DS.dialogRadius),
+    )
+}
+
 /** Souhrn typu zdroju — "📄3 🌐5 🎥1" */
 private fun sourceTypesSummary(types: Map<dev.jara.notebooklm.rpc.SourceType, Int>, total: Int): String {
     if (types.isEmpty()) return "$total"

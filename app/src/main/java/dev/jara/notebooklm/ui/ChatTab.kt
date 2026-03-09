@@ -29,6 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import dev.jara.notebooklm.rpc.*
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -110,6 +113,23 @@ internal fun ChatTab(
             }
         }
 
+        // Prompt suggestion chips — zobraz jen když je chat prázdný
+        if (detail.promptSuggestions.isNotEmpty() && detail.chatMessages.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (suggestion in detail.promptSuggestions) {
+                    SuggestionChip(text = suggestion) {
+                        onSendChat(suggestion)
+                    }
+                }
+            }
+        }
+
         // Input card
         Row(
             modifier = Modifier
@@ -165,6 +185,24 @@ internal fun ChatTab(
             }
         }
     }
+}
+
+@Composable
+private fun SuggestionChip(text: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(DS.chipRadius)
+    Text(
+        text = text,
+        color = Term.cyan,
+        fontFamily = Term.font,
+        fontSize = Term.fontSize,
+        maxLines = 2,
+        modifier = Modifier
+            .widthIn(max = 220.dp)
+            .clip(shape)
+            .border(1.dp, Term.cyan.copy(alpha = DS.borderAlpha), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

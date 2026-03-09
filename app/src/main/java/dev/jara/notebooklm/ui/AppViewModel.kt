@@ -217,6 +217,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Detekuj uz stazene artefakty
                 val existingDownloads = detectDownloadedArtifacts(artifacts)
 
+                // Prompt suggestions — paralelne, bez blokace
+                val suggestions = try { api.getPromptSuggestions(nb.id) } catch (e: Exception) {
+                    Log.w(TAG, "getPromptSuggestions: ${e.message}")
+                    emptyList()
+                }
+
                 _detail.value = DetailState(
                     sources = sources,
                     summary = summary,
@@ -224,6 +230,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     artifacts = artifacts,
                     notes = notes,
                     downloads = existingDownloads,
+                    promptSuggestions = suggestions,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "openNotebook", e)
@@ -245,6 +252,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "createNotebook", e)
+                _error.value = "Chyba: ${e.message}"
+            }
+        }
+    }
+
+    fun renameNotebook(notebookId: String, newTitle: String) {
+        val tokens = authManager.loadTokens() ?: return
+        viewModelScope.launch {
+            try {
+                val api = NotebookLmApi(httpClient, tokens)
+                api.renameNotebook(notebookId, newTitle)
+                _notebooks.value = _notebooks.value.map {
+                    if (it.id == notebookId) it.copy(title = newTitle) else it
+                }
+                _error.value = "Přejmenováno"
+            } catch (e: Exception) {
+                Log.e(TAG, "renameNotebook", e)
                 _error.value = "Chyba: ${e.message}"
             }
         }

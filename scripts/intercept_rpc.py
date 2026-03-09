@@ -94,35 +94,47 @@ def main():
         time.sleep(8)
         print(f"    → +{len(captured) - c0} RPC\n")
 
-        # 3. Zpět na seznam, otevři ⋮ menu na kartě
-        print("[3] Zpět na seznam, hledám menu karty...")
-        page.goto("https://notebooklm.google.com/")
-        time.sleep(5)
-
-        # ⋮ tlačítka na kartách — v seznamu sešitů
-        page.screenshot(path=str(CAPTURES_DIR / "list.png"))
-        # Hover nad kartou aby se ukázal ⋮
-        cards = page.locator('button.primary-action-button')
-        if cards.count() > 0:
-            cards.first.hover()
-            time.sleep(1)
-            # Teď klikni na ⋮ (secondary-action-button nebo mat-icon more_vert v blízkosti)
-            dots = page.locator('button.secondary-action-button').first
-            if dots.is_visible():
-                dots.click(force=True)
-                time.sleep(2)
-                page.screenshot(path=str(CAPTURES_DIR / "card_menu.png"))
-                items = page.locator('[role="menuitem"], button.mat-mdc-menu-item')
-                print("    Menu položky:")
-                for i in range(items.count()):
-                    txt = items.nth(i).text_content()
-                    if txt:
-                        print(f"      [{i}] {txt.strip()}")
-                page.keyboard.press("Escape")
-            else:
-                print("    ⋮ není viditelné po hoveru")
+        # 3. V detailu sešitu — hledej prompt suggestions
+        print("[3] Hledám prompt suggestions v chatu...")
+        c0 = len(captured)
+        # Počkej na chat input a klikni do něj
+        chat_input = page.locator('textarea, input[type="text"], [contenteditable="true"], .chat-input')
+        if chat_input.count() > 0:
+            chat_input.first.click()
+            time.sleep(3)
         else:
-            print("    Žádné karty")
+            # Zkus najít jakýkoli input element
+            page.evaluate("""() => {
+                const inputs = document.querySelectorAll('input, textarea, [contenteditable]');
+                if (inputs.length > 0) inputs[inputs.length - 1].focus();
+            }""")
+            time.sleep(3)
+
+        # Najdi chip/suggestion elementy
+        chips = page.evaluate("""() => {
+            const sels = [
+                '.suggestion-chip', '.prompt-suggestion', '[class*="suggestion"]',
+                '[class*="chip"]', '.mat-chip', 'mat-chip',
+                '[class*="prompt"]', '.quick-prompt'
+            ];
+            const found = [];
+            for (const sel of sels) {
+                const els = document.querySelectorAll(sel);
+                for (const el of els) {
+                    found.push({sel, text: el.textContent.trim().substring(0, 100), cls: el.className.substring(0, 80)});
+                }
+            }
+            return found;
+        }""")
+        print(f"    Chipy: {json.dumps(chips, ensure_ascii=False)[:500]}")
+        page.screenshot(path=str(CAPTURES_DIR / "chat_area.png"))
+
+        # Zkus hledat RPCy pro suggestions
+        new_rpcs = [c for c in captured[c0:] if c['rpc_id'] == 'otmP3b']
+        if new_rpcs:
+            print(f"    GeneratePromptSuggestions zachycen! params={json.dumps(new_rpcs[0]['params'], ensure_ascii=False)[:300]}")
+        else:
+            print(f"    +{len(captured) - c0} RPC (žádný otmP3b)")
 
         # Uložit
         print(f"\n{'='*60}")
