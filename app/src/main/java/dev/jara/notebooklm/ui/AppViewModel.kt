@@ -10,6 +10,7 @@ import dev.jara.notebooklm.rpc.*
 import dev.jara.notebooklm.search.EmbeddingDb
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -65,6 +66,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     internal val _classify = MutableStateFlow(ClassificationState())
     val classify: StateFlow<ClassificationState> get() = _classify
+
+    internal val _sourceScan = MutableStateFlow(SourceScanState())
+    val sourceScan: StateFlow<SourceScanState> get() = _sourceScan
+
+    internal val _indicators = MutableStateFlow<Map<String, NotebookIndicators>>(emptyMap())
+    val indicators: StateFlow<Map<String, NotebookIndicators>> get() = _indicators
+
+    internal val _sourceGroups = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sourceGroups: StateFlow<Map<String, String>> get() = _sourceGroups
 
     // Kategorie notebooku — catPrefs jen pro čtení při migraci ze starší verze
     internal val catPrefs = app.getSharedPreferences("categories", Context.MODE_PRIVATE)
@@ -122,6 +132,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (authManager.isLoggedIn()) {
             loadNotebooks()
         }
+        refreshIndicators()
     }
 
     // ── Auth ──
@@ -453,9 +464,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             NotebookSort.NAME_ASC -> notebooks.sortedBy { it.title.lowercase() }
             NotebookSort.NAME_DESC -> notebooks.sortedByDescending { it.title.lowercase() }
             NotebookSort.CATEGORY -> notebooks.sortedBy { (cats[it.id] ?: "zzz").lowercase() }
+            NotebookSort.SOURCES -> notebooks.sortedBy {
+                (_sourceGroups.value[it.id] ?: "zzz Bez sdílených zdrojů").lowercase()
+            }
         }
-        // Favority nahore (stabilni razeni) — ale ne pri category groupovani
-        return if (_notebookSort.value == NotebookSort.CATEGORY) sorted
+        // Favority nahore (stabilni razeni) — ale ne pri category/sources groupovani
+        return if (_notebookSort.value in setOf(NotebookSort.CATEGORY, NotebookSort.SOURCES)) sorted
         else sorted.sortedByDescending { it.id in favs }
     }
 
@@ -482,8 +496,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissDedup() { _dedup.value = DeduplicationState() }
     fun dismissDetailDedup() { _detailDedup.value = DeduplicationState() }
     fun dismissClassify() { _classify.value = ClassificationState() }
+    fun dismissSourceScan() { _sourceScan.value = SourceScanState() }
     fun clearSemanticResults() { _semanticResults.value = null }
     fun dismissError() { _error.value = null }
+
+    fun refreshIndicators() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val scanned = embeddingDb.getScannedNotebookIds()
+            val embedded = embeddingDb.getEmbeddedNotebookIds()
+            val classified = embeddingDb.getClassifiedNotebookIds()
+            val deduped = embeddingDb.getDedupedNotebookIds()
+            val allIds = scanned + embedded + classified + deduped
+            _indicators.value = allIds.associateWith { id ->
+                NotebookIndicators(
+                    scanned = id in scanned,
+                    embedded = id in embedded,
+                    classified = id in classified,
+                    deduped = id in deduped,
+                )
+            }
+        }
+    }
 
     override fun onCleared() {
         httpClient.close()

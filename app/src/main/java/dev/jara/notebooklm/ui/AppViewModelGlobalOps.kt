@@ -95,6 +95,10 @@ fun AppViewModel.startDeduplication() {
             }
         }
 
+        for (nb in nbs) {
+            withContext(Dispatchers.IO) { embeddingDb.markDedupDone(nb.id) }
+        }
+        refreshIndicators()
         _dedup.value = DeduplicationState(
             done = true,
             totalDeleted = totalDeleted,
@@ -227,6 +231,7 @@ Odpovez POUZE platnym JSON polem:
             // Aktualizuj facety a zpetne kompatibilni kategorie
             _facets.value = embeddingDb.getAllFacets()
             _categories.value = _facets.value.mapValues { it.value.topic }.filterValues { it.isNotEmpty() }
+            refreshIndicators()
 
             _classify.value = ClassificationState(
                 done = true,
@@ -302,6 +307,7 @@ fun AppViewModel.embedNotebooks(ids: Set<String>? = null) {
                 embeddingDb.pruneDeleted(nbs.map { it.id }.toSet())
             }
             _embeddingStatus.value = null
+            refreshIndicators()
             Log.i(TAG, "embedNotebooks: done, ${descriptions.size} popisů")
         } catch (e: Exception) {
             Log.e(TAG, "embedNotebooks", e)
@@ -344,4 +350,74 @@ fun AppViewModel.semanticSearch(query: String) {
             _searchLoading.value = false
         }
     }
+}
+
+/** Batch sken zdrojů — stáhne zdroje, zahashuje obsah, uloží do DB */
+fun AppViewModel.scanSources(ids: Set<String>? = null) {
+    val tokens = authManager.loadTokens() ?: return
+    val allNbs = _notebooks.value.toList()
+    val nbs = if (ids != null) allNbs.filter { it.id in ids } else allNbs
+    if (nbs.isEmpty()) return
+
+    _sourceScan.value = SourceScanState(running = true)
+
+    viewModelScope.launch {
+        val api = NotebookLmApi(httpClient, tokens)
+
+        for ((idx, nb) in nbs.withIndex()) {
+            _sourceScan.value = _sourceScan.value.copy(
+                currentNotebook = nb.title,
+                progress = "${idx + 1}/${nbs.size}",
+            )
+
+            try {
+                val sources = api.getSources(nb.id)
+                val records = mutableListOf<SourceRecord>()
+
+                for (src in sources) {
+                    val hash = try {
+                        when (src.type) {
+                            SourceType.TEXT -> {
+                                val content = api.getSourceFulltext(nb.id, src.id)
+                                sha256(content)
+                            }
+                            SourceType.PDF -> {
+                                val content = api.getSourceFulltext(nb.id, src.id)
+                                val firstPage = content.split('\u000C').firstOrNull()
+                                    ?: content.take(3000)
+                                sha256("${src.title}\n$firstPage")
+                            }
+                            else -> sha256(src.title)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "hash ${src.title}: ${e.message}")
+                        sha256(src.title)
+                    }
+
+                    records.add(SourceRecord(
+                        sourceId = src.id,
+                        title = src.title,
+                        type = src.type.name,
+                        contentHash = hash,
+                    ))
+                }
+
+                withContext(Dispatchers.IO) {
+                    embeddingDb.upsertSources(nb.id, records)
+                    embeddingDb.markSourcesScanned(nb.id)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "scanSources ${nb.title}: ${e.message}")
+            }
+        }
+
+        refreshIndicators()
+        _sourceScan.value = SourceScanState(done = true, progress = "hotovo")
+    }
+}
+
+private fun sha256(input: String): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
+    return hash.joinToString("") { "%02x".format(it) }
 }
