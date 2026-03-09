@@ -100,39 +100,16 @@ fun NotebookListScreen(
     // Filter sheet state
     var showFilterSheet by remember { mutableStateOf(false) }
 
-    // ── Scroll-hide header ──
+    // ── Scroll-hide: scrolluje = skryj, zastaví na 1s = ukaž ──
     val listState = rememberLazyListState()
-    var previousScrollOffset by remember { mutableIntStateOf(0) }
-    var previousFirstVisibleItem by remember { mutableIntStateOf(0) }
     var barsVisible by remember { mutableStateOf(true) }
 
-    val scrollDirection by remember {
-        derivedStateOf {
-            val currentOffset = listState.firstVisibleItemScrollOffset
-            val currentItem = listState.firstVisibleItemIndex
-
-            val scrollingDown = currentItem > previousFirstVisibleItem ||
-                (currentItem == previousFirstVisibleItem && currentOffset > previousScrollOffset + 12)
-            val scrollingUp = currentItem < previousFirstVisibleItem ||
-                (currentItem == previousFirstVisibleItem && currentOffset < previousScrollOffset - 12)
-
-            previousScrollOffset = currentOffset
-            previousFirstVisibleItem = currentItem
-
-            when {
-                scrollingDown || scrollingUp -> false // hide při jakémkoli scrollu
-                else -> barsVisible                   // keep current (idle = ukáže se)
-            }
-        }
-    }
-
-    LaunchedEffect(scrollDirection) { barsVisible = scrollDirection }
-
-    // Po zastavení scrollu → ukáž bary s 1s zpožděním
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }
             .collect { scrolling ->
-                if (!scrolling) {
+                if (scrolling) {
+                    barsVisible = false
+                } else {
                     kotlinx.coroutines.delay(1000L)
                     barsVisible = true
                 }
