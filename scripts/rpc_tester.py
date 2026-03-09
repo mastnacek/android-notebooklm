@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["requests"]
+# ///
 """
 NotebookLM batchexecute RPC tester.
 
@@ -7,16 +11,16 @@ Cookies se získávají z browseru (Chrome) nebo manuálně.
 
 Použití:
     # Získej cookies z Chrome a otestuj listNotebooks
-    python rpc_tester.py --method list_notebooks
+    uv run rpc_tester.py --method list_notebooks
 
     # Otestuj všechny GET metody
-    python rpc_tester.py --test-all-get
+    uv run rpc_tester.py --test-all-get
 
     # Manuální RPC volání
-    python rpc_tester.py --rpc wXbhsf --params '[null, 1, null, [2]]'
+    uv run rpc_tester.py --rpc wXbhsf --params '[null, 1, null, [2]]'
 
     # S manuálními cookies
-    python rpc_tester.py --cookies "SID=xxx; HSID=yyy; ..." --method list_notebooks
+    uv run rpc_tester.py --cookies "SID=xxx; HSID=yyy; ..." --method list_notebooks
 """
 
 import argparse

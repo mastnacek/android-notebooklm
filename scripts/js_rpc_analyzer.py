@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 Analyzátor RPC definic z NotebookLM JS bundlu.
 
@@ -8,9 +12,9 @@ Stáhne JS bundle z gstatic a extrahuje:
 - Kontext kolem každé metody (volající kód)
 
 Použití:
-    python js_rpc_analyzer.py                    # Stáhne bundle a analyzuje
-    python js_rpc_analyzer.py --bundle /tmp/x.js # Použije existující soubor
-    python js_rpc_analyzer.py --method wXbhsf    # Detail jedné metody
+    uv run js_rpc_analyzer.py                    # Stáhne bundle a analyzuje
+    uv run js_rpc_analyzer.py --bundle /tmp/x.js # Použije existující soubor
+    uv run js_rpc_analyzer.py --method wXbhsf    # Detail jedné metody
 """
 
 import argparse
