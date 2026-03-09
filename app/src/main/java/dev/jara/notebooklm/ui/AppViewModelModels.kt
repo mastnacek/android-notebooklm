@@ -21,7 +21,8 @@ enum class NotebookSort(val label: String) {
     DEFAULT("datum"),
     NAME_ASC("A-Z"),
     NAME_DESC("Z-A"),
-    CATEGORY("kat.");
+    CATEGORY("kat."),
+    SOURCES("zdroje");
 
     fun next(): NotebookSort = entries[(ordinal + 1) % entries.size]
 }
@@ -112,3 +113,28 @@ data class FacetFilter(
         return true
     }
 }
+
+/** Záznam zdroje pro DB */
+data class SourceRecord(
+    val sourceId: String,
+    val title: String,
+    val type: String,      // PDF, WEB, YOUTUBE, TEXT, OTHER
+    val contentHash: String?,
+)
+
+/** Stav batch skenu zdrojů */
+data class SourceScanState(
+    val running: Boolean = false,
+    val currentNotebook: String = "",
+    val progress: String = "",
+    val done: Boolean = false,
+    val error: String? = null,
+)
+
+/** Indikátory stavu notebooku (pro UI tečky) */
+data class NotebookIndicators(
+    val scanned: Boolean = false,
+    val embedded: Boolean = false,
+    val classified: Boolean = false,
+    val deduped: Boolean = false,
+)
