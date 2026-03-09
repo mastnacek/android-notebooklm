@@ -48,3 +48,4 @@ icon.svg
 image.webp
 release/
 scripts/.venv/
+scripts/rpc_report.json
