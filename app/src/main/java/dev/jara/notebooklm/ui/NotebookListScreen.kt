@@ -128,10 +128,15 @@ fun NotebookListScreen(
 
     LaunchedEffect(scrollDirection) { barsVisible = scrollDirection }
 
-    // Po zastavení scrollu → ukáž bary
+    // Po zastavení scrollu → ukáž bary s 1s zpožděním
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }
-            .collect { scrolling -> if (!scrolling) barsVisible = true }
+            .collect { scrolling ->
+                if (!scrolling) {
+                    kotlinx.coroutines.delay(1000L)
+                    barsVisible = true
+                }
+            }
     }
 
     // Create notebook dialog
