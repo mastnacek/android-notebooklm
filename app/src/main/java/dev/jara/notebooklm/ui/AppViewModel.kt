@@ -133,6 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadNotebooks()
         }
         refreshIndicators()
+        refreshSourceGroups()
     }
 
     // ── Auth ──
@@ -499,6 +500,56 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissSourceScan() { _sourceScan.value = SourceScanState() }
     fun clearSemanticResults() { _semanticResults.value = null }
     fun dismissError() { _error.value = null }
+
+    /** Přepočítá union-find skupiny ze zdrojů v DB */
+    fun refreshSourceGroups() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val hashGroups = embeddingDb.getSourceHashGroups()
+            val shared = hashGroups.filter { it.value.size >= 2 }
+
+            if (shared.isEmpty()) {
+                _sourceGroups.value = emptyMap()
+                return@launch
+            }
+
+            // Union-Find
+            val parent = mutableMapOf<String, String>()
+            fun find(x: String): String {
+                var r = x
+                while (parent[r] != null && parent[r] != r) r = parent[r]!!
+                var c = x
+                while (c != r) { val next = parent[c] ?: r; parent[c] = r; c = next }
+                return r
+            }
+            fun union(a: String, b: String) {
+                val ra = find(a); val rb = find(b)
+                if (ra != rb) parent[ra] = rb
+            }
+
+            for ((_, nbIds) in shared) {
+                val list = nbIds.toList()
+                for (i in 1 until list.size) union(list[0], list[i])
+            }
+
+            val allNbIds = hashGroups.values.flatten().toSet()
+            val groups = mutableMapOf<String, MutableSet<String>>()
+            for (id in allNbIds) {
+                val root = find(id)
+                groups.getOrPut(root) { mutableSetOf() }.add(id)
+            }
+
+            val result = mutableMapOf<String, String>()
+            for ((_, members) in groups) {
+                if (members.size < 2) continue
+                val titles = embeddingDb.getSharedSourceTitles(members)
+                val label = if (titles.isEmpty()) "Sdílené zdroje"
+                else if (titles.size == 1) titles[0].first
+                else "${titles[0].first} (+${titles.size - 1})"
+                for (id in members) result[id] = label
+            }
+            _sourceGroups.value = result
+        }
+    }
 
     fun refreshIndicators() {
         viewModelScope.launch(Dispatchers.IO) {

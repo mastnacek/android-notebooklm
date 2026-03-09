@@ -412,6 +412,7 @@ fun AppViewModel.scanSources(ids: Set<String>? = null) {
         }
 
         refreshIndicators()
+        refreshSourceGroups()
         _sourceScan.value = SourceScanState(done = true, progress = "hotovo")
     }
 }
