@@ -67,6 +67,9 @@ class MainActivity : ComponentActivity() {
             val categories by viewModel.categories.collectAsStateWithLifecycle()
             val facetsState by viewModel.facets.collectAsStateWithLifecycle()
             val facetFilter by viewModel.facetFilter.collectAsStateWithLifecycle()
+            val sourceScanState by viewModel.sourceScan.collectAsStateWithLifecycle()
+            val indicatorsState by viewModel.indicators.collectAsStateWithLifecycle()
+            val sourceGroupsState by viewModel.sourceGroups.collectAsStateWithLifecycle()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
 
             val folderPicker = rememberLauncherForActivityResult(
@@ -148,7 +151,7 @@ class MainActivity : ComponentActivity() {
                         onToggleFavorite = { viewModel.toggleFavorite(it) },
                         onCycleSort = { viewModel.cycleSort() },
                         dedup = dedupState,
-                        onStartDedup = { viewModel.startDeduplication() },
+                        onStartDedup = { viewModel.startDeduplication(null) },
                         onDismissDedup = { viewModel.dismissDedup() },
                         classify = classifyState,
                         categories = categories,
@@ -160,6 +163,12 @@ class MainActivity : ComponentActivity() {
                         facets = facetsState,
                         facetFilter = facetFilter,
                         onFacetFilterChange = { viewModel.setFacetFilter(it) },
+                        sourceScan = sourceScanState,
+                        onScanSources = { ids -> viewModel.scanSources(ids) },
+                        onDismissSourceScan = { viewModel.dismissSourceScan() },
+                        indicators = indicatorsState,
+                        sourceGroups = sourceGroupsState,
+                        onDedupSelected = { ids -> viewModel.startDeduplication(ids) },
                     )
 
                     is Screen.NotebookDetail -> NotebookDetailScreen(

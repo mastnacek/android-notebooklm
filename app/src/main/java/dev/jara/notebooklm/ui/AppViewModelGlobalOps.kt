@@ -19,9 +19,10 @@ import kotlinx.serialization.json.*
 private const val TAG = "AppViewModel"
 
 /** Spusti deduplikaci vsech notebooku — scanuje zdroje a maze duplikaty */
-fun AppViewModel.startDeduplication() {
+fun AppViewModel.startDeduplication(ids: Set<String>? = null) {
     val tokens = authManager.loadTokens() ?: return
-    val nbs = _notebooks.value.toList()
+    val allNbs = _notebooks.value.toList()
+    val nbs = if (ids != null) allNbs.filter { it.id in ids } else allNbs
     if (nbs.isEmpty()) return
 
     _dedup.value = DeduplicationState(running = true)
