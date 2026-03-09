@@ -304,8 +304,8 @@ fun AppViewModel.embedNotebooks(ids: Set<String>? = null) {
                     }
                 }
 
-                // Prune smazane
-                embeddingDb.pruneDeleted(nbs.map { it.id }.toSet())
+                // Prune smazane — pouzij VSECHNY notebooky, ne jen prave embeddovane
+                embeddingDb.pruneDeleted(allNbs.map { it.id }.toSet())
             }
             _embeddingStatus.value = null
             refreshIndicators()
