@@ -523,6 +523,7 @@ internal fun BottomActionBar(
     onLogout: () -> Unit,
     filterCount: Int,
     onFilter: () -> Unit,
+    onScanSourcesAll: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -556,6 +557,10 @@ internal fun BottomActionBar(
                         onClick = { menuExpanded = false; onEmbedAll() },
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text("Skenuj zdroje všech", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                    onClick = { menuExpanded = false; onScanSourcesAll() },
+                )
                 DropdownMenuItem(
                     text = { Text("Deduplikace zdrojů", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
                     onClick = { menuExpanded = false; onStartDedup() },

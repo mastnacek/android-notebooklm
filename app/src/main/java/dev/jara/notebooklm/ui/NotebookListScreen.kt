@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -68,6 +69,12 @@ fun NotebookListScreen(
     facets: Map<String, NotebookFacets>,
     facetFilter: FacetFilter,
     onFacetFilterChange: (FacetFilter) -> Unit,
+    sourceScan: SourceScanState,
+    onScanSources: (Set<String>?) -> Unit,
+    onDismissSourceScan: () -> Unit,
+    indicators: Map<String, NotebookIndicators>,
+    sourceGroups: Map<String, String>,
+    onDedupSelected: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -211,6 +218,7 @@ fun NotebookListScreen(
                         onLogout = onLogout,
                         filterCount = facetFilter.activeCount,
                         onFilter = { showFilterSheet = true },
+                        onScanSourcesAll = { onScanSources(null) },
                     )
                 }
             }
@@ -337,7 +345,23 @@ fun NotebookListScreen(
                             selectedIds = emptySet()
                         },
                     )
+                    ActionPill(
+                        text = "Zdroje",
+                        color = Color(0xFF7AA2F7),
+                        onClick = {
+                            onScanSources(selectedIds)
+                            selectedIds = emptySet()
+                        },
+                    )
                 }
+                ActionPill(
+                    text = "Dedup",
+                    color = Term.red,
+                    onClick = {
+                        onDedupSelected(selectedIds)
+                        selectedIds = emptySet()
+                    },
+                )
                 ActionPill(
                     text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
                     color = Term.red,
@@ -404,6 +428,18 @@ fun NotebookListScreen(
         } else if (classify.error != null) {
             StatusBar(text = "Chyba: ${classify.error}", color = Term.red)
         }
+        if (sourceScan.running) {
+            StatusBar(
+                text = "Zdroje: ${sourceScan.progress} — ${sourceScan.currentNotebook}",
+                color = Color(0xFF7AA2F7),
+            )
+        } else if (sourceScan.done) {
+            StatusBar(
+                text = "Sken zdrojů dokončen",
+                color = Color(0xFF7AA2F7),
+                onDismiss = onDismissSourceScan,
+            )
+        }
 
         // ── Obsah ──
         if (loading || searchLoading) {
@@ -467,6 +503,49 @@ fun NotebookListScreen(
                                     category = null,
                                     isSelected = nb.id in selectedIds,
                                     selectionMode = selectionMode,
+                                    indicators = indicators[nb.id] ?: NotebookIndicators(),
+                                    hasApiKey = hasApiKey,
+                                    haptic = haptic,
+                                    scope = scope,
+                                    snackbarHostState = snackbarHostState,
+                                    onClick = {
+                                        if (selectionMode) selectedIds = selectedIds.toggle(nb.id)
+                                        else onNotebookClick(nb)
+                                    },
+                                    onLongClick = { selectedIds = selectedIds.toggle(nb.id) },
+                                    onToggleFavorite = { onToggleFavorite(nb.id) },
+                                    onClassify = { onClassifySelected(setOf(nb.id)) },
+                                    onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
+                                )
+                            }
+                        }
+                    }
+                } else if (sortMode == NotebookSort.SOURCES) {
+                    val grouped = facetFiltered
+                        .groupBy { sourceGroups[it.id] ?: "Bez sdílených zdrojů" }
+                        .toSortedMap(compareBy { if (it == "Bez sdílených zdrojů") "zzz" else it.lowercase() })
+                    for ((group, nbs) in grouped) {
+                        item(key = "src_$group") {
+                            Text(
+                                text = group,
+                                color = Color(0xFF7AA2F7),
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSizeLg,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                            )
+                        }
+                        for (nb in nbs) {
+                            item(key = nb.id) {
+                                SwipeableNotebookItem(
+                                    nb = nb,
+                                    isFavorite = nb.id in favorites,
+                                    category = null,
+                                    isSelected = nb.id in selectedIds,
+                                    selectionMode = selectionMode,
+                                    indicators = indicators[nb.id] ?: NotebookIndicators(),
                                     hasApiKey = hasApiKey,
                                     haptic = haptic,
                                     scope = scope,
@@ -491,6 +570,7 @@ fun NotebookListScreen(
                             category = categories[nb.id],
                             isSelected = nb.id in selectedIds,
                             selectionMode = selectionMode,
+                            indicators = indicators[nb.id] ?: NotebookIndicators(),
                             hasApiKey = hasApiKey,
                             haptic = haptic,
                             scope = scope,
