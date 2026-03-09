@@ -236,10 +236,14 @@ private fun AccordionSection(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = "${selected.size}",
-                    color = color,
+                    color = Term.bg,
                     fontFamily = Term.font,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color.copy(alpha = 0.8f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -280,12 +284,12 @@ private fun FacetChip(
 ) {
     val haptic = LocalHapticFeedback.current
     val shape = RoundedCornerShape(DS.chipRadius)
-    val bgColor = if (selected) color.copy(alpha = 0.10f) else Color.Transparent
-    val borderColor = if (selected) color.copy(alpha = 0.5f) else Term.border.copy(alpha = DS.borderAlpha)
-    val textColor = if (selected) color else Term.textDim
+    val bgColor = if (selected) color.copy(alpha = 0.85f) else Color.Transparent
+    val borderColor = if (selected) color else Term.border.copy(alpha = 0.2f)
+    val textColor = if (selected) Term.bg else Term.text
 
     Text(
-        text = text,
+        text = if (selected) "✓ $text" else text,
         color = textColor,
         fontFamily = Term.font,
         fontSize = Term.fontSize,

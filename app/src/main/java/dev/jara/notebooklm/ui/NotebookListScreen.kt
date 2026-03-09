@@ -8,7 +8,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -96,6 +99,35 @@ fun NotebookListScreen(
 
     // Filter sheet state
     var showFilterSheet by remember { mutableStateOf(false) }
+
+    // ── Scroll-hide header ──
+    val listState = rememberLazyListState()
+    var previousScrollOffset by remember { mutableIntStateOf(0) }
+    var previousFirstVisibleItem by remember { mutableIntStateOf(0) }
+    var headerVisible by remember { mutableStateOf(true) }
+
+    val scrollDirection by remember {
+        derivedStateOf {
+            val currentOffset = listState.firstVisibleItemScrollOffset
+            val currentItem = listState.firstVisibleItemIndex
+
+            val scrollingDown = currentItem > previousFirstVisibleItem ||
+                (currentItem == previousFirstVisibleItem && currentOffset > previousScrollOffset + 12)
+            val scrollingUp = currentItem < previousFirstVisibleItem ||
+                (currentItem == previousFirstVisibleItem && currentOffset < previousScrollOffset - 12)
+
+            previousScrollOffset = currentOffset
+            previousFirstVisibleItem = currentItem
+
+            when {
+                scrollingDown -> false // hide
+                scrollingUp -> true    // show
+                else -> headerVisible  // keep current
+            }
+        }
+    }
+
+    LaunchedEffect(scrollDirection) { headerVisible = scrollDirection }
 
     // Create notebook dialog
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -263,44 +295,54 @@ fun NotebookListScreen(
             )
         }
 
-        // ── Header ──
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Term.surface)
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "NotebookLM",
-                color = Term.green,
-                fontFamily = Term.font,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "${notebooks.size}",
-                color = Term.bg,
-                fontFamily = Term.font,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Term.green.copy(alpha = 0.6f))
-                    .padding(horizontal = 7.dp, vertical = 2.dp),
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            // Indikátor přihlášení
-            Text(
-                text = "●",
-                color = Term.green,
-                fontSize = 10.sp,
-            )
-        }
+        // ── Header (scroll-hide) ──
+        LaunchedEffect(selectionMode) { if (selectionMode) headerVisible = true }
 
-        StatusLegend()
+        AnimatedVisibility(
+            visible = headerVisible,
+            enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
+            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Term.surface)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "NotebookLM",
+                        color = Term.green,
+                        fontFamily = Term.font,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${notebooks.size}",
+                        color = Term.bg,
+                        fontFamily = Term.font,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Term.green.copy(alpha = 0.6f))
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    // Indikátor přihlášení
+                    Text(
+                        text = "●",
+                        color = Term.green,
+                        fontSize = 10.sp,
+                    )
+                }
+
+                StatusLegend()
+            }
+        }
 
         // ── Selection action bar ──
         if (selectionMode) {
@@ -490,6 +532,7 @@ fun NotebookListScreen(
         } else {
             // Seznam
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
