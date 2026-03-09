@@ -3,10 +3,77 @@
 Extrahováno z APK `com.google.android.apps.labs.language.tailwind` (Flutter app)
 pomocí `strings` na `libNotebookLM_prod_android_library_flutter_artifacts.so` (Dart AOT snapshot).
 
-## gRPC Server
-- **Produkce:** `notebooklm-pa.googleapis.com`
+## Transport & Auth
+
+### gRPC Server
+- **Produkce:** `notebooklm-pa.googleapis.com` (port 443, TLS/HTTP2)
 - **Staging:** `staging-notebooklm-pa.sandbox.googleapis.com`
 - **Autopush:** `autopush-notebooklm-pa.sandbox.googleapis.com`
+
+### Autentizace
+App používá **Google SSO** přes Android Account Manager + Google Play Services:
+
+1. **Sign-in:** `GoogleSignInClient` → Google Sign-In flow → email + OAuth token
+2. **Token:** `GoogleAuthUtil.getToken(context, email, scopes)` → OAuth2 access token
+3. **gRPC auth:** Token se posílá jako `Bearer` v auth header přes `ChannelCredentials`
+4. **Refresh:** Automatický refresh přes `UserRecoverableAuthException` handling
+5. **Storage:** Account data v `SharedPreferences("com.google.android.flutter.plugins.ssoauth")`
+6. **Token provider:** `_tokenProvider` → `serverTokenProvider` → přidává token do gRPC metadata
+
+### OAuth2 Scopes
+```
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/drive
+https://www.googleapis.com/auth/photos.image.readonly
+https://www.googleapis.com/auth/notifications
+https://www.googleapis.com/auth/cclog
+https://www.googleapis.com/auth/experimentsandconfigs
+https://www.googleapis.com/auth/supportcontent
+https://www.googleapis.com/auth/account_settings_mobile
+```
+
+### gRPC Headers
+```
+Authorization: Bearer <access_token>
+X-Goog-AuthUser: <user_index>
+x-goog-ext-353267353-bin: <binary_metadata>
+Content-Type: application/grpc
+User-Agent: <flutter_user_agent>
+```
+
+### Dart gRPC Stack
+```
+TailwindRpcService
+  → TailwindRpcClient (tailwind_rpc_client.dart)
+    → GrpcHttp2Channel (package:grpc + package:rpc_client)
+      → HTTP/2 TLS connection to notebooklm-pa.googleapis.com:443
+        → ChannelCredentials (Bearer token from SSO)
+          → CallOptions + TailwindRpcOptions + GoogleRpcOptions
+            → RequestContextHandler → CuiAttributionHelper
+```
+
+### File Upload (Scotty)
+Soubory se uploadují přes Google Scotty protocol:
+1. Inicializace: POST → získání `X-Goog-Upload-Url`
+2. Upload: PUT na upload URL s `X-Goog-Upload-Command: upload, finalize`
+3. Headers: `X-Goog-Upload-Content-Length`, `X-Goog-Upload-File-Name`
+
+### Klíčový rozdíl: Web vs Mobile
+| | Web (naše app) | Mobile (Google app) |
+|---|---|---|
+| Transport | batchexecute HTTP POST | gRPC over HTTP/2 |
+| Auth | Cookie-based (SID, HSID, SSID) | OAuth2 Bearer token |
+| Endpoint | notebooklm.google.com/_/LabsTailwindUi/data/batchexecute | notebooklm-pa.googleapis.com:443 |
+| Serialization | JSON arrays (batchexecute format) | Protocol Buffers |
+| Service name | LabsTailwindUi | LabsTailwindOrchestrationService |
+
+### Jak bychom mohli využít gRPC API
+1. **Získat OAuth2 token** — naše app už má Google cookies z WebView login
+2. **Alternativa:** Použít cookies pro batchexecute (stávající flow) NEBO
+3. **Vyměnit cookie za OAuth token** — `accounts.google.com/o/oauth2/v2/auth` s naší session
+4. **Přímé gRPC volání** — Ktor/OkHttp gRPC klient na `notebooklm-pa.googleapis.com`
+5. **Protobuf schéma** — potřebujeme `.proto` soubory (nemáme, ale známe názvy metod + request/response typy)
 
 ## gRPC Service
 `google.internal.labs.tailwind.orchestration.v1.LabsTailwindOrchestrationService`
