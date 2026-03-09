@@ -1,7 +1,8 @@
-# NotebookLM Mobile App — Extrahované API (z Dart AOT snapshot)
+# NotebookLM — Kompletní API reference
 
-Extrahováno z APK `com.google.android.apps.labs.language.tailwind` (Flutter app)
-pomocí `strings` na `libNotebookLM_prod_android_library_flutter_artifacts.so` (Dart AOT snapshot).
+Extrahováno z:
+1. APK `com.google.android.apps.labs.language.tailwind` (Flutter) — `strings` na Dart AOT snapshot
+2. Web JS bundle `boq-labs-tailwind.LabsTailwindUi` (2.5MB) — RPC definice z `_.Tz()` registrací
 
 ## Transport & Auth
 
@@ -75,78 +76,132 @@ Soubory se uploadují přes Google Scotty protocol:
 4. **Přímé gRPC volání** — Ktor/OkHttp gRPC klient na `notebooklm-pa.googleapis.com`
 5. **Protobuf schéma** — potřebujeme `.proto` soubory (nemáme, ale známe názvy metod + request/response typy)
 
-## gRPC Service
+## gRPC Services
+
+### LabsTailwindOrchestrationService
 `google.internal.labs.tailwind.orchestration.v1.LabsTailwindOrchestrationService`
 
-## Kompletní seznam RPC metod (35 metod)
+### LabsTailwindSharingService
+`labs.language.tailwind.sharing.LabsTailwindSharingService`
+
+### DasherGrowthPromotionService
+Interní Google service pro doporučení a eventy.
+
+## Kompletní batchexecute RPC mapa (62 metod)
+
+Extrahováno z JS bundlu — pattern: `new _.Tz("RPC_ID", ResponseClass, [_.Mz, isGET, _.Oz, "/Service.Method"])`
 
 ### Projekty (Notebooky)
-| Metoda | Popis |
-|--------|-------|
-| CreateProject | Vytvoření nového notebooku |
-| GetProject | Detail notebooku |
-| MutateProject | Úprava notebooku (přejmenování, nastavení) |
-| DeleteProjects | Smazání notebooků (batch) |
-| ListRecentlyViewedProjects | Nedávno zobrazené notebooky |
-| RemoveRecentlyViewedProject | Odebrání z nedávných |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `CCqFvf` | CreateProject | POST | Vytvoření nového notebooku |
+| `rLM1Ne` | GetProject | GET | Detail notebooku |
+| `s0tc2d` | MutateProject | POST | Úprava notebooku (přejmenování, nastavení) |
+| `WWINqb` | DeleteProjects | POST | Smazání notebooků (batch) |
+| `wXbhsf` | ListRecentlyViewedProjects | GET | Nedávno zobrazené notebooky |
+| `fejl7e` | RemoveRecentlyViewedProject | POST | Odebrání z nedávných |
+| `te3DCe` | CopyProject | POST | Kopírování notebooku |
+| `AUrzMb` | GetProjectAnalytics | GET | Analytika notebooku |
+| `ub2Bae` | ListFeaturedProjects | GET | Doporučené/featured notebooky |
+| `DemIHe` | UpdateFeaturedNotebookStatus | POST | Aktualizace featured statusu |
 
 ### Zdroje (Sources)
-| Metoda | Popis |
-|--------|-------|
-| AddSources | Přidání zdrojů do notebooku |
-| DeleteSources | Smazání zdrojů |
-| LoadSource | Načtení obsahu zdroje |
-| ActOnSources | Akce nad zdroji (batch) |
-| GetDriveSourceStatus | Status Google Drive zdroje |
-| DiscoverSources | Objevení zdrojů (URL, web scraping) |
-| FinishDiscoverSourcesRun | Dokončení discovery session |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `izAoDd` | AddSources | POST | Přidání zdrojů do notebooku |
+| `tGMBJ` | DeleteSources | POST | Smazání zdrojů |
+| `hizoJc` | LoadSource | GET | Načtení obsahu zdroje |
+| `b7Wfje` | MutateSource | POST | Úprava zdroje |
+| `FLmJqe` | RefreshSource | POST | Obnovení zdroje |
+| `yyryJe` | ActOnSources | GET | Akce nad zdroji (batch) |
+| `yR9Yof` | CheckSourceFreshness | GET | Kontrola aktuálnosti zdroje |
+| `o4cbdc` | AddTentativeSources | POST | Přidání zdrojů v tentativním stavu |
+
+### Source Discovery
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `Es3dTe` | DiscoverSources | GET | Objevení zdrojů (URL, web scraping) |
+| `QA9ei` | DiscoverSourcesAsync | POST | Async discovery zdrojů |
+| `Ljjv0c` | DiscoverSourcesManifold | POST | Manifold discovery zdrojů |
+| `e3bVqc` | ListDiscoverSourcesJob | GET | Seznam discovery jobů |
+| `LBwxtb` | FinishDiscoverSourcesRun | POST | Dokončení discovery session |
+| `Zbrupe` | CancelDiscoverSourcesJob | POST | Zrušení discovery jobu |
 
 ### Chat
-| Metoda | Popis |
-|--------|-------|
-| ListChatSessions | Seznam chat sessions |
-| ListChatTurns | Historie chatu |
-| DeleteChatTurns | Smazání chatových zpráv |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `laWbsf` | GenerateFreeFormStreamed | POST | **Streaming chat** (hlavní chat) |
+| `hPTbtc` | ListChatSessions | GET | Seznam chat sessions |
+| `khqZz` | ListChatTurns | GET | Historie chatu |
+| `J7Gthc` | DeleteChatTurns | POST | Smazání chatových zpráv |
 
 ### Artefakty (Studio tab)
-| Metoda | Popis |
-|--------|-------|
-| CreateArtifact | Vytvoření artefaktu |
-| GetArtifact | Detail artefaktu |
-| ListArtifacts | Seznam artefaktů |
-| UpdateArtifact | Úprava artefaktu |
-| DeleteArtifact | Smazání artefaktu |
-| DeriveArtifact | Odvození nového artefaktu z existujícího |
-| SuggestArtifacts | AI návrhy artefaktů |
-| GetArtifactCustomizationChoices | Dostupné customizace |
-| GetArtifactUserState | Uživatelský stav artefaktu |
-| UpsertArtifactUserState | Uložení uživatelského stavu |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `R7cb6c` | CreateArtifact | POST | Vytvoření artefaktu |
+| `Rytqqe` | GenerateArtifact | POST | Generování artefaktu (AI) |
+| `v9rmvd` | GetArtifact | GET | Detail artefaktu |
+| `gArtLc` | ListArtifacts | GET | Seznam artefaktů |
+| `rc3d8d` | UpdateArtifact | POST | Úprava artefaktu |
+| `V5N4be` | DeleteArtifact | POST | Smazání artefaktu |
+| `KmcKPe` | DeriveArtifact | POST | Odvození nového artefaktu z existujícího |
+| `sqTeoe` | GetArtifactCustomizationChoices | GET | Dostupné customizace |
+| `ulBSjf` | GetArtifactUserState | GET | Uživatelský stav artefaktu |
+| `Fxmvse` | UpsertArtifactUserState | POST | Uložení uživatelského stavu |
 
 ### Poznámky & Průvodce
-| Metoda | Popis |
-|--------|-------|
-| GetNotes | Získání poznámek |
-| GenerateDocumentGuides | AI průvodce dokumentem |
-| GenerateNotebookGuide | AI průvodce notebookem |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `cFji9` | GetNotes | GET | Získání poznámek |
+| `CYK0Xb` | CreateNote | POST | Vytvoření poznámky |
+| `cYAfTb` | MutateNote | POST | Úprava poznámky |
+| `AH0mwd` | DeleteNotes | POST | Smazání poznámek |
+| `VfAZjd` | GenerateNotebookGuide | GET | AI průvodce notebookem |
+| `tr032e` | GenerateDocumentGuides | GET | AI průvodce dokumentem |
+
+### AI generování
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `otmP3b` | GeneratePromptSuggestions | GET | AI návrhy promptů |
+| `ciyUvf` | GenerateReportSuggestions | GET | AI návrhy reportů |
+| `likKIe` | ExecuteWritingFunction | POST | Spuštění psací funkce |
+| `uK8f7c` | GenerateMagicView | GET | Generování magic view |
+| `rtY7md` | GetMagicView | GET | Získání magic view |
+| `XpqOp` | GetMagicIndex | GET | Získání magic indexu |
+| `EnujNd` | ListModelOptions | GET | Seznam AI modelů |
 
 ### Účet & Auth
-| Metoda | Popis |
-|--------|-------|
-| GetOrCreateAccount | Získání/vytvoření účtu |
-| MutateAccount | Úprava nastavení účtu |
-| GenerateAccessToken | Generování přístupového tokenu |
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `ZwVcOc` | GetOrCreateAccount | POST | Získání/vytvoření účtu |
+| `hT54vc` | MutateAccount | POST | Úprava nastavení účtu |
+| `preRPe` | GenerateAccessToken | GET | Generování přístupového tokenu |
 
-### Live Audio (WebRTC)
+### Sdílení (LabsTailwindSharingService)
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `QDyure` | ShareProject | POST | Sdílení notebooku |
+| `JFMDGd` | GetProjectDetails | GET | Detail sdíleného projektu |
+| `n3dkHd` | CreateAccessRequest | POST | Žádost o přístup |
+
+### Export & Feedback
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `Krh3pd` | ExportToDrive | POST | Export do Google Drive |
+| `uNyJKe` | SubmitFeedback | POST | Odeslání zpětné vazby |
+| `OmVMXc` | ReportContent | POST | Nahlášení obsahu |
+
+### Google Interní (DasherGrowthPromotionService)
+| RPC ID | Metoda | GET/POST | Popis |
+|--------|--------|----------|-------|
+| `ozz5Z` | FetchRecommendations | GET | Doporučení |
+| `i1CNXc` | RecordEvents | POST | Záznam událostí |
+
+### Live Audio (WebRTC) — jen v mobilní app
 | Metoda | Popis |
 |--------|-------|
 | GetIceConfig | ICE konfigurace pro WebRTC |
-| SendSdpOffer | Odeslání SDP nabídky pro WebRTC |
-
-### Ostatní
-| Metoda | Popis |
-|--------|-------|
-| SubmitFeedback | Odeslání zpětné vazby |
-| ShareLink | Vytvoření sdíleného odkazu |
+| SendSdpOffer | Odeslání SDP nabídky |
 
 ## Typy artefaktů (ARTIFACT_TYPE_*)
 | Typ | Popis |

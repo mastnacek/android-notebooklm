@@ -167,7 +167,7 @@ suspend fun NotebookLmApi.generateArtifact(
         add(innerArray)
     }
 
-    val result = rpcCall(RpcMethod.GENERATE_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
+    val result = rpcCall(RpcMethod.CREATE_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
     return try {
         result?.jsonArray?.getOrNull(0)?.jsonArray
             ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
@@ -179,7 +179,7 @@ suspend fun NotebookLmApi.getInteractiveHtml(notebookId: String, artifactId: Str
     val params = buildJsonArray {
         add(buildJsonArray { add(JsonPrimitive(artifactId)) })
     }
-    val result = rpcCall(RpcMethod.GET_INTERACTIVE_HTML, params, sourcePath = "/notebook/$notebookId")
+    val result = rpcCall(RpcMethod.GET_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
     return try {
         findFirstString(result ?: return null)
     } catch (_: Exception) { null }
