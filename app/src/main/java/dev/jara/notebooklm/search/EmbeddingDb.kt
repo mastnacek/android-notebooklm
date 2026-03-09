@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import dev.jara.notebooklm.ui.NotebookFacets
+import dev.jara.notebooklm.ui.SourceRecord
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -15,7 +16,7 @@ import java.nio.ByteOrder
  * ale KNN se pocita v Kotlinu (cosine similarity).
  */
 class EmbeddingDb(context: Context) : SQLiteOpenHelper(
-    context, "notebooklm_embeddings.db", null, 2
+    context, "notebooklm_embeddings.db", null, 3
 ) {
     companion object {
         private const val TAG = "EmbeddingDb"
@@ -33,6 +34,8 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
             )
         """)
         createFacetsTable(db)
+        createSourcesTable(db)
+        createStatusTable(db)
     }
 
     private fun createFacetsTable(db: SQLiteDatabase) {
@@ -48,11 +51,34 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
         """)
     }
 
+    private fun createSourcesTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS notebook_sources (
+                notebook_id TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                type TEXT NOT NULL,
+                content_hash TEXT,
+                scanned_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (notebook_id, source_id)
+            )
+        """)
+    }
+
+    private fun createStatusTable(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS notebook_status (
+                notebook_id TEXT PRIMARY KEY,
+                sources_scanned_at TEXT,
+                dedup_done_at TEXT
+            )
+        """)
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
         // Migrace — zachovej existujici data, jen pridej nove tabulky
-        if (old < 2) {
-            createFacetsTable(db)
-        }
+        if (old < 2) createFacetsTable(db)
+        if (old < 3) { createSourcesTable(db); createStatusTable(db) }
     }
 
     /** Ulozi embedding pro notebook. Prepise pokud existuje. */
@@ -182,6 +208,138 @@ class EmbeddingDb(context: Context) : SQLiteOpenHelper(
         val result = mutableListOf<String>()
         val cursor = readableDatabase.rawQuery(
             "SELECT DISTINCT $column FROM notebook_facets WHERE $column != '' ORDER BY $column", null
+        )
+        while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
+        cursor.close()
+        return result
+    }
+
+    // ── notebook_sources CRUD ──
+
+    /** Ulozi nebo aktualizuje zdroje pro notebook (smaze stare, vlozi nove) */
+    fun upsertSources(notebookId: String, sources: List<SourceRecord>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("notebook_sources", "notebook_id = ?", arrayOf(notebookId))
+            for (src in sources) {
+                val cv = ContentValues().apply {
+                    put("notebook_id", notebookId)
+                    put("source_id", src.sourceId)
+                    put("title", src.title)
+                    put("type", src.type)
+                    put("content_hash", src.contentHash)
+                }
+                db.insertWithOnConflict("notebook_sources", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Vrati vsechny zdroje jako mapu content_hash -> Set<notebookId> (pro union-find) */
+    fun getSourceHashGroups(): Map<String, Set<String>> {
+        val result = mutableMapOf<String, MutableSet<String>>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT notebook_id, content_hash FROM notebook_sources WHERE content_hash IS NOT NULL", null
+        )
+        while (cursor.moveToNext()) {
+            val nbId = cursor.getString(0)
+            val hash = cursor.getString(1)
+            result.getOrPut(hash) { mutableSetOf() }.add(nbId)
+        }
+        cursor.close()
+        return result
+    }
+
+    /** Vraci sdilene zdroje mezi skupinou notebooku (pro nazev skupiny) */
+    fun getSharedSourceTitles(notebookIds: Set<String>): List<Pair<String, Int>> {
+        if (notebookIds.size < 2) return emptyList()
+        val placeholders = notebookIds.joinToString(",") { "?" }
+        val cursor = readableDatabase.rawQuery("""
+            SELECT title, COUNT(DISTINCT notebook_id) as cnt
+            FROM notebook_sources
+            WHERE notebook_id IN ($placeholders) AND content_hash IS NOT NULL
+            GROUP BY content_hash
+            HAVING cnt >= 2
+            ORDER BY cnt DESC
+        """, notebookIds.toTypedArray())
+        val result = mutableListOf<Pair<String, Int>>()
+        while (cursor.moveToNext()) {
+            result.add(cursor.getString(0) to cursor.getInt(1))
+        }
+        cursor.close()
+        return result
+    }
+
+    /** Vrati Set notebook ID ktere maji naskenovane zdroje */
+    fun getScannedNotebookIds(): Set<String> {
+        val result = mutableSetOf<String>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT DISTINCT notebook_id FROM notebook_sources", null
+        )
+        while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
+        cursor.close()
+        return result
+    }
+
+    /** Vrati Set notebook ID ktere maji embedding */
+    fun getEmbeddedNotebookIds(): Set<String> {
+        val result = mutableSetOf<String>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT notebook_id FROM notebook_embeddings", null
+        )
+        while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
+        cursor.close()
+        return result
+    }
+
+    /** Vrati Set notebook ID ktere maji facety */
+    fun getClassifiedNotebookIds(): Set<String> {
+        val result = mutableSetOf<String>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT notebook_id FROM notebook_facets", null
+        )
+        while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
+        cursor.close()
+        return result
+    }
+
+    // ── notebook_status CRUD ──
+
+    /** Zapise sources_scanned_at pro notebook */
+    fun markSourcesScanned(notebookId: String) {
+        val cv = ContentValues().apply {
+            put("notebook_id", notebookId)
+            put("sources_scanned_at", java.time.Instant.now().toString())
+        }
+        writableDatabase.insertWithOnConflict("notebook_status", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Zapise dedup_done_at pro notebook */
+    fun markDedupDone(notebookId: String) {
+        val cv = ContentValues().apply {
+            put("notebook_id", notebookId)
+            put("dedup_done_at", java.time.Instant.now().toString())
+        }
+        // Nacti existujici sources_scanned_at aby se neztratil pri REPLACE
+        val existing = readableDatabase.rawQuery(
+            "SELECT sources_scanned_at FROM notebook_status WHERE notebook_id = ?",
+            arrayOf(notebookId)
+        )
+        if (existing.moveToFirst()) {
+            cv.put("sources_scanned_at", existing.getString(0))
+        }
+        existing.close()
+        writableDatabase.insertWithOnConflict("notebook_status", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Vrati Set notebook ID kde dedup probehl */
+    fun getDedupedNotebookIds(): Set<String> {
+        val result = mutableSetOf<String>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT notebook_id FROM notebook_status WHERE dedup_done_at IS NOT NULL", null
         )
         while (cursor.moveToNext()) { result.add(cursor.getString(0)) }
         cursor.close()
