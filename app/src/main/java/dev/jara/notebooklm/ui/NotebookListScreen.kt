@@ -120,14 +120,19 @@ fun NotebookListScreen(
             previousFirstVisibleItem = currentItem
 
             when {
-                scrollingDown -> false // hide
-                scrollingUp -> true    // show
-                else -> barsVisible    // keep current
+                scrollingDown || scrollingUp -> false // hide při jakémkoli scrollu
+                else -> barsVisible                   // keep current (idle = ukáže se)
             }
         }
     }
 
     LaunchedEffect(scrollDirection) { barsVisible = scrollDirection }
+
+    // Po zastavení scrollu → ukáž bary
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { scrolling -> if (!scrolling) barsVisible = true }
+    }
 
     // Create notebook dialog
     var showCreateDialog by remember { mutableStateOf(false) }
