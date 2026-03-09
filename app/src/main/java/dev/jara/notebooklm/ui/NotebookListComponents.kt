@@ -96,14 +96,14 @@ internal fun StatusBar(
 
 /** 4 indikátorové tečky stavu notebooku */
 @Composable
-private fun StatusDots(indicators: NotebookIndicators) {
+private fun StatusDots(indicators: NotebookIndicators, modifier: Modifier = Modifier) {
     val dots = listOf(
         indicators.scanned to Color(0xFF7AA2F7),  // modrá (pastelová)
         indicators.embedded to Color(0xFF9ECE6A),  // zelená
         indicators.classified to Color(0xFFE0AF68), // žlutá
-        indicators.deduped to Color(0xFFF7768E),   // růžová
+        indicators.deduped to Term.red,              // červená
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for ((active, color) in dots) {
             Box(
                 modifier = Modifier
@@ -141,82 +141,81 @@ internal fun NotebookCard(
         Modifier.border(DS.borderWidth, Term.border.copy(alpha = DS.borderAlpha), shape)
     }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .then(borderMod)
             .background(bgColor)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        // Selection indicator
-        if (selectionMode) {
-            Text(
-                text = if (isSelected) "◉" else "○",
-                color = if (isSelected) Term.cyan else Term.textDim,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(end = 12.dp),
-            )
-        }
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Selection indicator
+            if (selectionMode) {
+                Text(
+                    text = if (isSelected) "◉" else "○",
+                    color = if (isSelected) Term.cyan else Term.textDim,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+            }
 
-        // Emoji
-        if (nb.emoji.isNotEmpty()) {
-            Text(
-                text = nb.emoji,
-                fontSize = 22.sp,
-                modifier = Modifier.padding(end = 12.dp),
-            )
-        }
+            // Emoji
+            if (nb.emoji.isNotEmpty()) {
+                Text(
+                    text = nb.emoji,
+                    fontSize = 22.sp,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+            }
 
-        // Texty
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            // Texty
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = nb.title,
                     color = Term.white,
                     fontFamily = Term.font,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f, fill = false),
                 )
-                StatusDots(indicators)
+                if (category != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = category,
+                        color = Term.purple,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                    )
+                }
             }
-            if (category != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = category,
-                    color = Term.purple,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                )
-            }
-        }
 
-        // Favorite toggle
-        if (!selectionMode) {
+            // Favorite toggle
+            if (!selectionMode) {
+                Text(
+                    text = if (isFavorite) "★" else "☆",
+                    color = if (isFavorite) Term.orange else Term.textDim,
+                    fontSize = 18.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onToggleFavorite() }
+                        .padding(8.dp),
+                )
+            }
+
+            // Chevron
             Text(
-                text = if (isFavorite) "★" else "☆",
-                color = if (isFavorite) Term.orange else Term.textDim,
-                fontSize = 18.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onToggleFavorite() }
-                    .padding(8.dp),
+                text = "›",
+                color = Term.textDim,
+                fontSize = 20.sp,
+                modifier = Modifier.padding(start = 4.dp),
             )
         }
 
-        // Chevron
-        Text(
-            text = "›",
-            color = Term.textDim,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(start = 4.dp),
-        )
+        // StatusDots — pravý horní roh karty
+        StatusDots(indicators, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
     }
 }
 
@@ -562,7 +561,7 @@ internal fun BottomActionBar(
                     onClick = { menuExpanded = false; onScanSourcesAll() },
                 )
                 DropdownMenuItem(
-                    text = { Text("Deduplikace zdrojů", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
+                    text = { Text("Dedup", color = Term.text, fontFamily = Term.font, fontSize = Term.fontSizeLg) },
                     onClick = { menuExpanded = false; onStartDedup() },
                 )
                 DropdownMenuItem(
@@ -617,11 +616,11 @@ internal fun StatusLegend() {
         "Zdroje" to Color(0xFF7AA2F7),
         "Embed" to Color(0xFF9ECE6A),
         "AI kat." to Color(0xFFE0AF68),
-        "Dedup" to Color(0xFFF7768E),
+        "Dedup" to Term.red,
     )
     Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(start = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
         for ((label, color) in items) {
             Row(

@@ -437,6 +437,7 @@ fun NotebookListScreen(
             StatusBar(
                 text = "Sken zdrojů dokončen",
                 color = Color(0xFF7AA2F7),
+                dismissText = "OK",
                 onDismiss = onDismissSourceScan,
             )
         }
