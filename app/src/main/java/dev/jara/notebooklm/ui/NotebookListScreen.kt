@@ -87,6 +87,7 @@ fun NotebookListScreen(
     indicators: Map<String, NotebookIndicators>,
     sourceGroups: Map<String, String>,
     onDedupSelected: (Set<String>) -> Unit,
+    accountInfo: AccountInfo?,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -324,11 +325,45 @@ fun NotebookListScreen(
                             .background(Term.green.copy(alpha = 0.6f))
                             .padding(horizontal = 7.dp, vertical = 2.dp),
                     )
+                    // Tier badge
+                    if (accountInfo != null) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        val tierColor = when (accountInfo.tier) {
+                            AccountTier.ULTRA -> Term.orange
+                            AccountTier.PRO -> Term.cyan
+                            AccountTier.PLUS -> Term.purple
+                            AccountTier.FREE -> Term.textDim
+                        }
+                        Text(
+                            text = accountInfo.tier.label,
+                            color = Term.bg,
+                            fontFamily = Term.font,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(tierColor.copy(alpha = 0.8f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     // Indikátor přihlášení
                     Text(
                         text = "●",
                         color = Term.green,
+                        fontSize = 10.sp,
+                    )
+                }
+                // Model a kontext pod nadpisem
+                if (accountInfo != null) {
+                    val modelShort = accountInfo.modelName
+                        .replace("GeminiPro", "Gemini ")
+                        .replace("HighThinking", "· Thinking")
+                        .replace("384K", "384K ")
+                    Text(
+                        text = "$modelShort · ${accountInfo.contextLimit / 1000}K ctx",
+                        color = Term.textDim,
+                        fontFamily = Term.font,
                         fontSize = 10.sp,
                     )
                 }

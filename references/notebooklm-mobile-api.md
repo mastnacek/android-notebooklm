@@ -203,6 +203,65 @@ Extrahováno z JS bundlu — pattern: `new _.Tz("RPC_ID", ResponseClass, [_.Mz, 
 | GetIceConfig | ICE konfigurace pro WebRTC |
 | SendSdpOffer | Odeslání SDP nabídky |
 
+## Model & Account (z RPC testů)
+
+### AI Model
+```
+GeminiPro384KHighThinking  — 384K kontextové okno, reasoning mode
+```
+
+### Account Response (`GetOrCreateAccount` / `ZwVcOc`)
+```json
+[[null, [TIER, LIMIT_A, LIMIT_B, CONTEXT_LIMIT],
+  [true, null, null, null, [LOCALE, null, null, [[2,2,1],[5,1,2]]]],
+  [[1]], [true, 1, 3, 2]]]
+```
+
+| Pole | Index | Příklad | Popis |
+|------|-------|---------|-------|
+| Tier | `[0][1][0]` | `6` | Předplatné tier (viz tabulka níže) |
+| Limit A | `[0][1][1]` | `500` | Denní limit operací? |
+| Limit B | `[0][1][2]` | `300` | Limit zdrojů/artefaktů? |
+| Context limit | `[0][1][3]` | `500000` | Max velikost kontextu (znaků) |
+| Locale | `[0][2][4][0]` | `"cs"` | Jazyk uživatele |
+
+### Tier mapping (odhad z mobilní app)
+| Kód | Tier | Popis |
+|-----|------|-------|
+| 1 | FREE | Zdarma |
+| 2 | PLUS | Plus |
+| 3 | PRO | Pro |
+| 6 | ULTRA / GEMNOVA? | Nejvyšší tier (testovaný účet) |
+
+### Artifact Customization (`GetArtifactCustomizationChoices` / `sqTeoe`)
+
+**Audio Overview styly:**
+| ID | Název | Popis |
+|----|-------|-------|
+| 1 | Deep Dive | Živá konverzace dvou hostů |
+| 2 | Brief | Stručný přehled klíčových myšlenek |
+| 3 | Critique | Expertní recenze zdrojů |
+| 4 | Debate | Debata z různých perspektiv |
+
+**Video styly:**
+| ID | Název | Popis |
+|----|-------|-------|
+| 1 | Explainer | Strukturovaný přehled |
+| 2 | Brief | Stručný přehled |
+
+**Slides styly:**
+| ID | Název | Popis |
+|----|-------|-------|
+| 1 | Detailed Deck | Kompletní deck s textem |
+| 2 | Presenter Slides | Čisté vizuální slidy |
+
+**Document styly:**
+| Název | Popis |
+|-------|-------|
+| Briefing Doc | Klíčové poznatky a citace |
+| Study Guide | Kvíz s odpověďmi + slovníček |
+| Blog Post | Článek ve stylu blogu |
+
 ## Typy artefaktů (ARTIFACT_TYPE_*)
 | Typ | Popis |
 |-----|-------|

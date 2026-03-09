@@ -49,3 +49,4 @@ image.webp
 release/
 scripts/.venv/
 scripts/rpc_report.json
+scripts/__pycache__/

@@ -2,6 +2,30 @@ package dev.jara.notebooklm.rpc
 
 // Datove modely a enumy pro NotebookLM API — extrahované z NotebookLmApi tridy
 
+// ── Account ──
+
+data class AccountInfo(
+    val tier: AccountTier,
+    val dailyLimit: Int,
+    val sourceLimit: Int,
+    val contextLimit: Int,
+    val locale: String,
+    val modelName: String,
+)
+
+enum class AccountTier(val code: Int, val label: String) {
+    FREE(1, "Free"),
+    PLUS(2, "Plus"),
+    PRO(3, "Pro"),
+    ULTRA(6, "Ultra");
+
+    companion object {
+        fun fromCode(code: Int): AccountTier = entries.find { it.code == code } ?: FREE
+    }
+}
+
+// ── Notebooks ──
+
 data class Notebook(
     val id: String,
     val title: String,

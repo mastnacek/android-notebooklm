@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jara.notebooklm.auth.LoginActivity
+import dev.jara.notebooklm.rpc.AccountInfo
 import dev.jara.notebooklm.ui.*
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
             val sourceScanState by viewModel.sourceScan.collectAsStateWithLifecycle()
             val indicatorsState by viewModel.indicators.collectAsStateWithLifecycle()
             val sourceGroupsState by viewModel.sourceGroups.collectAsStateWithLifecycle()
+            val accountInfoState by viewModel.accountInfo.collectAsStateWithLifecycle()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
 
             val folderPicker = rememberLauncherForActivityResult(
@@ -169,6 +171,7 @@ class MainActivity : ComponentActivity() {
                         indicators = indicatorsState,
                         sourceGroups = sourceGroupsState,
                         onDedupSelected = { ids -> viewModel.startDeduplication(ids) },
+                        accountInfo = accountInfoState,
                     )
 
                     is Screen.NotebookDetail -> NotebookDetailScreen(

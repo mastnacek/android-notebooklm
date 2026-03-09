@@ -89,6 +89,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setFacetFilter(filter: FacetFilter) { _facetFilter.value = filter }
     fun clearFacetFilter() { _facetFilter.value = FacetFilter() }
 
+    private val _accountInfo = MutableStateFlow<AccountInfo?>(null)
+    val accountInfo: StateFlow<AccountInfo?> get() = _accountInfo
+
     internal val _screen = MutableStateFlow<Screen>(
         if (authManager.isLoggedIn()) Screen.NotebookList else Screen.Login
     )
@@ -179,6 +182,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val api = NotebookLmApi(httpClient, tokens)
                 _notebooks.value = api.listNotebooks()
+                // Načti info o účtu na pozadí (nepropaguj chybu)
+                if (_accountInfo.value == null) {
+                    try { _accountInfo.value = api.getAccountInfo() }
+                    catch (e: Exception) { Log.w(TAG, "getAccountInfo: ${e.message}") }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "loadNotebooks", e)
                 _error.value = "Chyba: ${e.message}"

@@ -403,6 +403,42 @@ class NotebookLmApi(
         return messages
     }
 
+    /** Získá info o účtu + AI model */
+    suspend fun getAccountInfo(): AccountInfo? {
+        val accountResult = rpcCall(RpcMethod.GET_OR_CREATE_ACCOUNT, buildJsonArray {})
+        val modelResult = rpcCall(RpcMethod.LIST_MODEL_OPTIONS, buildJsonArray {})
+
+        return try {
+            val acc = accountResult?.jsonArray?.getOrNull(0)?.jsonArray ?: return null
+            val limits = acc.getOrNull(1)?.jsonArray ?: return null
+            val tierCode = limits.getOrNull(0)?.jsonPrimitive?.intOrNull ?: 1
+            val dailyLimit = limits.getOrNull(1)?.jsonPrimitive?.intOrNull ?: 0
+            val sourceLimit = limits.getOrNull(2)?.jsonPrimitive?.intOrNull ?: 0
+            val contextLimit = limits.getOrNull(3)?.jsonPrimitive?.intOrNull ?: 0
+            val locale = try {
+                acc.getOrNull(2)?.jsonArray?.getOrNull(4)?.jsonArray
+                    ?.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: "en"
+            } catch (_: Exception) { "en" }
+
+            val modelName = try {
+                modelResult?.jsonArray?.getOrNull(1)?.jsonPrimitive?.contentOrNull
+                    ?: "unknown"
+            } catch (_: Exception) { "unknown" }
+
+            AccountInfo(
+                tier = AccountTier.fromCode(tierCode),
+                dailyLimit = dailyLimit,
+                sourceLimit = sourceLimit,
+                contextLimit = contextLimit,
+                locale = locale,
+                modelName = modelName,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "getAccountInfo parse: ${e.message}")
+            null
+        }
+    }
+
     internal suspend fun rpcCall(
         method: RpcMethod,
         params: JsonArray,
