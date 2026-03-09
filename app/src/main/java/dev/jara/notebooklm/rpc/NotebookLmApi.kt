@@ -57,9 +57,11 @@ class NotebookLmApi(
                     } else rawTitle
                     val id = arr.getOrNull(2)?.jsonPrimitive?.contentOrNull ?: continue
                     val emoji = arr.getOrNull(3)?.jsonPrimitive?.contentOrNull ?: ""
-                    val sourceCount = extractSourceCount(arr)
-                    Log.i(TAG, "parseNotebooks[$idx]: id=$id, emoji=$emoji, title=$title")
-                    notebooks.add(Notebook(id, title, emoji, sourceCount))
+                    val (sourceCount, sourceTypes) = extractSources(arr)
+                    val (modifiedAt, createdAt) = extractTimestamps(arr)
+                    val isShared = extractIsShared(arr)
+                    Log.i(TAG, "parseNotebooks[$idx]: id=$id, emoji=$emoji, title=$title, sources=$sourceCount")
+                    notebooks.add(Notebook(id, title, emoji, sourceCount, modifiedAt, createdAt, isShared, sourceTypes))
                 } catch (e: Exception) {
                     Log.e(TAG, "parseNotebooks[$idx]: failed to parse item: ${e.message}")
                     continue
@@ -229,13 +231,44 @@ class NotebookLmApi(
         }
     }
 
-    private fun extractSourceCount(arr: JsonArray): Int {
+    /** Extrahuje pocet zdroju a breakdown typu z [1] */
+    private fun extractSources(arr: JsonArray): Pair<Int, Map<SourceType, Int>> {
         return try {
-            if (arr.size > 7) {
-                arr[7].jsonPrimitive.int
-            } else 0
+            val sources = arr.getOrNull(1)?.jsonArray ?: return 0 to emptyMap()
+            val types = mutableMapOf<SourceType, Int>()
+            for (src in sources) {
+                try {
+                    val code = src.jsonArray.getOrNull(2)?.jsonArray?.getOrNull(4)?.jsonPrimitive?.int
+                    if (code != null) {
+                        val type = SourceType.fromCode(code)
+                        types[type] = (types[type] ?: 0) + 1
+                    }
+                } catch (_: Exception) { }
+            }
+            sources.size to types
         } catch (_: Exception) {
-            0
+            0 to emptyMap()
+        }
+    }
+
+    /** Extrahuje timestamps z [5][5] (modified) a [5][8] (created) */
+    private fun extractTimestamps(arr: JsonArray): Pair<Long, Long> {
+        return try {
+            val settings = arr.getOrNull(5)?.jsonArray ?: return 0L to 0L
+            val modified = settings.getOrNull(5)?.jsonArray?.getOrNull(0)?.jsonPrimitive?.long ?: 0L
+            val created = settings.getOrNull(8)?.jsonArray?.getOrNull(0)?.jsonPrimitive?.long ?: 0L
+            modified to created
+        } catch (_: Exception) {
+            0L to 0L
+        }
+    }
+
+    /** Extrahuje sdileni flag z [5][1] */
+    private fun extractIsShared(arr: JsonArray): Boolean {
+        return try {
+            arr.getOrNull(5)?.jsonArray?.getOrNull(1)?.jsonPrimitive?.boolean ?: false
+        } catch (_: Exception) {
+            false
         }
     }
 

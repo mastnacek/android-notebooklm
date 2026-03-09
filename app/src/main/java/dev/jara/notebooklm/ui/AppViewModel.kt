@@ -470,6 +470,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val cats = _categories.value
         val sorted = when (_notebookSort.value) {
             NotebookSort.DEFAULT -> notebooks
+            NotebookSort.MODIFIED -> notebooks.sortedByDescending { it.modifiedAt }
+            NotebookSort.CREATED -> notebooks.sortedByDescending { it.createdAt }
             NotebookSort.NAME_ASC -> notebooks.sortedBy { it.title.lowercase() }
             NotebookSort.NAME_DESC -> notebooks.sortedByDescending { it.title.lowercase() }
             NotebookSort.CATEGORY -> notebooks.sortedBy { (cats[it.id] ?: "zzz").lowercase() }

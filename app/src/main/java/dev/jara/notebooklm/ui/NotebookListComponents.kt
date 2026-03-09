@@ -150,7 +150,7 @@ internal fun NotebookCard(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Selection indicator
@@ -190,6 +190,14 @@ internal fun NotebookCard(
                         fontSize = Term.fontSize,
                     )
                 }
+                if (nb.sourceTypes.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = sourceTypesSummary(nb.sourceTypes, nb.sourceCount),
+                        color = Term.textDim,
+                        fontSize = 11.sp,
+                    )
+                }
             }
 
             // Favorite toggle
@@ -216,6 +224,30 @@ internal fun NotebookCard(
 
         // StatusDots — pravý horní roh karty
         StatusDots(indicators, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
+
+        // Spodní řádek — relativní čas vlevo, sdílení vpravo
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            if (nb.modifiedAt > 0) {
+                Text(
+                    text = relativeTime(nb.modifiedAt),
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = 10.sp,
+                )
+            }
+            if (nb.isShared) {
+                Text(
+                    text = "👥",
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 }
 
@@ -415,6 +447,30 @@ internal fun CreateNotebookDialog(
         containerColor = Term.surface,
         shape = RoundedCornerShape(DS.dialogRadius),
     )
+}
+
+/** Souhrn typu zdroju — "📄3 🌐5 🎥1" */
+private fun sourceTypesSummary(types: Map<dev.jara.notebooklm.rpc.SourceType, Int>, total: Int): String {
+    if (types.isEmpty()) return "$total"
+    return types.entries
+        .sortedByDescending { it.value }
+        .joinToString(" ") { "${it.key.icon}${it.value}" }
+}
+
+/** Relativni cas — "pred 2h", "pred 3d", "5. 3." */
+private fun relativeTime(epochSeconds: Long): String {
+    val now = System.currentTimeMillis() / 1000
+    val diff = now - epochSeconds
+    return when {
+        diff < 60 -> "právě teď"
+        diff < 3600 -> "před ${diff / 60}m"
+        diff < 86400 -> "před ${diff / 3600}h"
+        diff < 604800 -> "před ${diff / 86400}d"
+        else -> {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochSeconds * 1000 }
+            "${cal.get(java.util.Calendar.DAY_OF_MONTH)}. ${cal.get(java.util.Calendar.MONTH) + 1}."
+        }
+    }
 }
 
 /** Fuzzy match — kazdy znak query se musi vyskytovat v haystack v poradi */

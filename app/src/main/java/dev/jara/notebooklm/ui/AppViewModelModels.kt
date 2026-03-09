@@ -18,11 +18,13 @@ enum class DetailTab { CHAT, SOURCES, ARTIFACTS, NOTES }
 
 /** Razeni seznamu sesitu — jako Rust NotebookSort */
 enum class NotebookSort(val label: String) {
-    DEFAULT("datum"),
-    NAME_ASC("A-Z"),
-    NAME_DESC("Z-A"),
-    CATEGORY("kat."),
-    SOURCES("zdroje");
+    DEFAULT("⏱"),
+    MODIFIED("✎"),
+    CREATED("★"),
+    NAME_ASC("A↓"),
+    NAME_DESC("Z↓"),
+    CATEGORY("◆"),
+    SOURCES("⊞");
 
     fun next(): NotebookSort = entries[(ordinal + 1) % entries.size]
 }

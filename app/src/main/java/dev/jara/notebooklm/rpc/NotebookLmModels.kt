@@ -31,6 +31,10 @@ data class Notebook(
     val title: String,
     val emoji: String,
     val sourceCount: Int,
+    val modifiedAt: Long = 0L,  // epoch seconds
+    val createdAt: Long = 0L,   // epoch seconds
+    val isShared: Boolean = false,
+    val sourceTypes: Map<SourceType, Int> = emptyMap(),
 )
 
 data class Source(
@@ -44,14 +48,21 @@ enum class SourceType(val icon: String) {
     WEB("\uD83C\uDF10"),
     YOUTUBE("\uD83C\uDFA5"),
     TEXT("\uD83D\uDCDD"),
+    DRIVE("\uD83D\uDCC2"),
+    IMAGE("\uD83D\uDDBC"),
+    GDOC("\uD83D\uDCD1"),
     OTHER("\uD83D\uDCC1");
 
     companion object {
         fun fromCode(code: Int): SourceType = when (code) {
+            1 -> OTHER
             3 -> PDF
             4 -> TEXT
             5 -> WEB
+            8 -> GDOC
             9 -> YOUTUBE
+            13 -> IMAGE
+            14 -> DRIVE
             else -> OTHER
         }
     }
