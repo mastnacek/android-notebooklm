@@ -11,6 +11,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
@@ -18,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -92,12 +94,39 @@ internal fun StatusBar(
     }
 }
 
+/** 4 indikátorové tečky stavu notebooku */
+@Composable
+private fun StatusDots(indicators: NotebookIndicators) {
+    val dots = listOf(
+        indicators.scanned to Color(0xFF7AA2F7),  // modrá (pastelová)
+        indicators.embedded to Color(0xFF9ECE6A),  // zelená
+        indicators.classified to Color(0xFFE0AF68), // žlutá
+        indicators.deduped to Color(0xFFF7768E),   // růžová
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        for ((active, color) in dots) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .then(
+                        if (active) Modifier
+                            .shadow(4.dp, CircleShape, ambientColor = color, spotColor = color)
+                            .background(color, CircleShape)
+                        else Modifier
+                            .border(1.dp, color.copy(alpha = 0.4f), CircleShape)
+                    )
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun NotebookCard(
     nb: Notebook,
     isFavorite: Boolean,
     category: String?,
+    indicators: NotebookIndicators,
     isSelected: Boolean,
     selectionMode: Boolean,
     onClick: () -> Unit,
@@ -143,13 +172,20 @@ internal fun NotebookCard(
 
         // Texty
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = nb.title,
-                color = Term.white,
-                fontFamily = Term.font,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = nb.title,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                StatusDots(indicators)
+            }
             if (category != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -190,6 +226,7 @@ internal fun SwipeableNotebookItem(
     nb: Notebook,
     isFavorite: Boolean,
     category: String?,
+    indicators: NotebookIndicators,
     isSelected: Boolean,
     selectionMode: Boolean,
     hasApiKey: Boolean,
@@ -301,6 +338,7 @@ internal fun SwipeableNotebookItem(
                 nb = nb,
                 isFavorite = isFavorite,
                 category = category,
+                indicators = indicators,
                 isSelected = isSelected,
                 selectionMode = selectionMode,
                 onClick = onClick,
