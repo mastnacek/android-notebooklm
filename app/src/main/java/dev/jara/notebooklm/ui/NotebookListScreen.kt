@@ -292,6 +292,8 @@ fun NotebookListScreen(
             )
         }
 
+        StatusLegend()
+
         // ── Selection action bar ──
         if (selectionMode) {
             Row(

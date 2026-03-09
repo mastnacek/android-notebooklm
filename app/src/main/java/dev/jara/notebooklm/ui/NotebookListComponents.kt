@@ -600,3 +600,42 @@ internal fun BottomAction(
         }
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATUS LEGEND
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Legenda indikátorů pod nadpisem */
+@Composable
+internal fun StatusLegend() {
+    val items = listOf(
+        "Zdroje" to Color(0xFF7AA2F7),
+        "Embed" to Color(0xFF9ECE6A),
+        "AI kat." to Color(0xFFE0AF68),
+        "Dedup" to Color(0xFFF7768E),
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(start = 16.dp),
+    ) {
+        for ((label, color) in items) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .shadow(3.dp, CircleShape, ambientColor = color, spotColor = color)
+                        .background(color, CircleShape)
+                )
+                Text(
+                    text = label,
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = 10.sp,
+                )
+            }
+        }
+    }
+}
