@@ -176,13 +176,21 @@ suspend fun NotebookLmApi.generateArtifact(
 
 /** Ziska interaktivni HTML kvizu nebo flashcards */
 suspend fun NotebookLmApi.getInteractiveHtml(notebookId: String, artifactId: String): String? {
+    // Python reference: rpc_call(method, [artifact_id]) → params = ["id"]
     val params = buildJsonArray {
-        add(buildJsonArray { add(JsonPrimitive(artifactId)) })
+        add(JsonPrimitive(artifactId))
     }
     val result = rpcCall(RpcMethod.GET_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
+        ?: return null
+    Log.i(TAG, "getInteractiveHtml raw: ${result.toString().take(500)}")
     return try {
-        findFirstString(result ?: return null)
-    } catch (_: Exception) { null }
+        // Python: result[0][9][0] = HTML content
+        val data = result.jsonArray[0].jsonArray
+        val html = data.getOrNull(9)?.jsonArray?.getOrNull(0)?.jsonPrimitive?.contentOrNull
+        html ?: findFirstString(result)
+    } catch (_: Exception) {
+        try { findFirstString(result) } catch (_: Exception) { null }
+    }
 }
 
 /** Extrahuje URL z artifact dat */
