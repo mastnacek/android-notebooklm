@@ -488,15 +488,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun exportQuizForBrainGate(context: Context, artifactId: String, artifactTitle: String) {
-        val tokens = authManager.loadTokens() ?: return
-        val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
+        Log.i(TAG, "exportQuizForBrainGate: id=$artifactId, title=$artifactTitle")
+        val tokens = authManager.loadTokens() ?: run {
+            Log.w(TAG, "exportQuiz: no tokens"); _error.value = "Nejsi přihlášen"; return
+        }
+        val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: run {
+            Log.w(TAG, "exportQuiz: no notebook"); return
+        }
         viewModelScope.launch {
             try {
                 _error.value = "Exportuji kvíz..."
                 val api = NotebookLmApi(httpClient, tokens)
                 val html = api.getInteractiveHtml(nb.id, artifactId)
+                Log.i(TAG, "exportQuiz: html=${html?.length ?: "null"} chars")
                 if (html != null) {
                     val ok = QuizExporter.exportAndShare(context, html, artifactTitle)
+                    Log.i(TAG, "exportQuiz: exportAndShare=$ok")
                     if (!ok) _error.value = "Nepodařilo se parsovat kvíz"
                 } else {
                     _error.value = "HTML obsah nenalezen"
