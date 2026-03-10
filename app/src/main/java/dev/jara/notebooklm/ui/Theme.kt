@@ -92,7 +92,7 @@ val DarkAppColors = AppColors(
     red = Gruvbox.BrightRed,
     purple = Gruvbox.BrightPurple,
     text = Gruvbox.Light2,
-    textDim = Gruvbox.Dark4,
+    textDim = Gruvbox.Gray,          // #928374 — kontrast 5.3:1 (WCAG AA), čitelnější než Dark4
     white = Gruvbox.Light1,
     border = Gruvbox.Dark2,
 )
