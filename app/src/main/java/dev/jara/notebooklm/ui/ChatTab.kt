@@ -61,17 +61,19 @@ internal fun ChatTab(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Summary
-            if (!detail.summary.isNullOrBlank() && detail.chatMessages.isEmpty()) {
+            // Summary — vždy nahoře, sbalená
+            if (!detail.summary.isNullOrBlank()) {
                 item {
                     SummaryCard(detail.summary)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Zeptej se na cokoliv...",
-                        color = Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                    )
+                    if (detail.chatMessages.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Zeptej se na cokoliv...",
+                            color = Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        )
+                    }
                 }
             }
 
@@ -207,6 +209,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
 
 @Composable
 internal fun SummaryCard(summary: String) {
+    var expanded by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = Modifier
@@ -214,17 +217,29 @@ internal fun SummaryCard(summary: String) {
             .clip(shape)
             .background(Term.surface.copy(alpha = 0.7f))
             .border(1.dp, Term.cyan.copy(alpha = 0.3f), shape)
-            .padding(16.dp),
+            .clickable { expanded = !expanded }
+            .padding(14.dp),
     ) {
-        Text(
-            text = "📋 Souhrn",
-            color = Term.cyan,
-            fontFamily = Term.font,
-            fontSize = Term.fontSizeLg,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        MarkdownText(text = summary, color = Term.text)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (expanded) "▾" else "▸",
+                color = Term.textDim,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            Text(
+                text = "📋 Souhrn",
+                color = Term.cyan,
+                fontFamily = Term.font,
+                fontSize = Term.fontSizeLg,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.height(8.dp))
+            MarkdownText(text = summary, color = Term.text)
+        }
     }
 }
 
