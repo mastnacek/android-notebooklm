@@ -53,8 +53,6 @@ object QuizExporter {
                         isCorrect = optObj["isCorrect"]?.jsonPrimitive?.booleanOrNull ?: false,
                     )
                 } ?: emptyList()
-                val correctIdx = options.indexOfFirst { it.isCorrect }
-                Log.i(TAG, "Q${i+1}: correctIdx=$correctIdx / ${options.size} opts")
                 QuizQuestion(id = "nlm-${i + 1}", question = question, options = options, hint = hint)
             }
         } catch (e: Exception) {
