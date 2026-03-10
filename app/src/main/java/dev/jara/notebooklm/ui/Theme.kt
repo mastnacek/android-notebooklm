@@ -76,6 +76,8 @@ data class AppColors(
     val orange: Color,
     val red: Color,
     val purple: Color,
+    val yellow: Color,              // primary CTA — hlavní akce
+    val disabled: Color,            // neaktivní prvky
     val text: Color,
     val textDim: Color,
     val white: Color,
@@ -91,6 +93,8 @@ val DarkAppColors = AppColors(
     orange = Gruvbox.BrightOrange,
     red = Gruvbox.BrightRed,
     purple = Gruvbox.BrightPurple,
+    yellow = Gruvbox.BrightYellow,   // #FABD2F — primary CTA, kontrast 9.5:1 na Dark0Hard
+    disabled = Gruvbox.Dark3,        // #665C54 — tlumená šedohnědá pro neaktivní prvky
     text = Gruvbox.Light2,
     textDim = Gruvbox.Gray,          // #928374 — kontrast 5.3:1 (WCAG AA), čitelnější než Dark4
     white = Gruvbox.Light1,
@@ -106,6 +110,8 @@ val LightAppColors = AppColors(
     orange = Gruvbox.FadedOrange,
     red = Gruvbox.FadedRed,
     purple = Gruvbox.FadedPurple,
+    yellow = Gruvbox.NeutralYellow,  // #D79921 — primary CTA, kontrast 4.6:1 na Light0
+    disabled = Gruvbox.Light4,       // #A89984 — tlumená pro neaktivní prvky
     text = Gruvbox.Dark0Hard,       // #1D2021 — max kontrast na Light0 pozadí
     textDim = Gruvbox.Dark4,        // #7C6F64 — čitelnější než Light4
     white = Gruvbox.Dark0,          // #282828 — důrazný text
@@ -239,6 +245,8 @@ object Term {
     val orange: Color @Composable get() = LocalAppColors.current.orange
     val red: Color @Composable get() = LocalAppColors.current.red
     val purple: Color @Composable get() = LocalAppColors.current.purple
+    val yellow: Color @Composable get() = LocalAppColors.current.yellow
+    val disabled: Color @Composable get() = LocalAppColors.current.disabled
     val text: Color @Composable get() = LocalAppColors.current.text
     val textDim: Color @Composable get() = LocalAppColors.current.textDim
     val white: Color @Composable get() = LocalAppColors.current.white

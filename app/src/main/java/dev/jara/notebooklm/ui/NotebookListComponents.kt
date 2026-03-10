@@ -392,7 +392,7 @@ internal fun CreateNotebookDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            ActionPill("Vytvořit", Term.green) {
+            ActionPill("Vytvořit", Term.yellow) {
                 if (title.isNotBlank()) onConfirm(title.trim(), emoji.trim())
             }
         },
@@ -460,7 +460,7 @@ internal fun RenameNotebookDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            ActionPill("Uložit", Term.green) {
+            ActionPill("Uložit", Term.yellow) {
                 if (title.isNotBlank() && title.trim() != currentTitle) onConfirm(title.trim())
             }
         },

@@ -250,7 +250,7 @@ internal fun SourcesTab(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DetailPill("＋ Zdroj", Term.green) { showAddDialog = true }
+                DetailPill("＋ Zdroj", Term.yellow) { showAddDialog = true }
                 Spacer(modifier = Modifier.weight(1f))
                 if (detail.sources.size >= 2) {
                     DetailPill("Deduplikace", Term.orange) { onDedupSources() }
@@ -516,7 +516,7 @@ internal fun AddSourceDialog(
             ) {
                 DetailPill("Zrušit", Term.textDim) { onDismiss() }
                 Spacer(modifier = Modifier.width(8.dp))
-                DetailPill("Přidat", Term.green) {
+                DetailPill("Přidat", Term.yellow) {
                     if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
                 }
             }

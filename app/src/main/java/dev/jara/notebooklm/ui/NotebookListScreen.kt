@@ -563,7 +563,7 @@ fun NotebookListScreen(
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionPill("＋ Nový", Term.green) { showCreateDialog = true }
+                        ActionPill("＋ Nový", Term.yellow) { showCreateDialog = true }
                         ActionPill("⟳ Sync", Term.cyan) { onRefresh() }
                     }
                 }

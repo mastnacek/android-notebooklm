@@ -190,7 +190,7 @@ internal fun ChatTab(
             )
             if (input.isNotBlank() && !detail.chatAnswering) {
                 Spacer(modifier = Modifier.width(8.dp))
-                DetailPill("Odeslat", Term.green) {
+                DetailPill("Odeslat", Term.yellow) {
                     onSendChat(input.trim())
                     input = ""
                 }
