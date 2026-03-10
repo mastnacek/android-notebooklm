@@ -442,6 +442,33 @@ class NotebookLmApi(
         rpcCall(RpcMethod.DELETE_NOTEBOOK, params)
     }
 
+    /** Nacte seznam chat sessions pro notebook — vraci posledni conversationId */
+    suspend fun getLatestChatSessionId(notebookId: String): String? {
+        val params = buildJsonArray {
+            add(buildJsonArray {})
+            add(JsonNull)
+            add(JsonPrimitive(notebookId))
+            add(JsonPrimitive(20))
+        }
+        val result = rpcCall(RpcMethod.LIST_CHAT_SESSIONS, params, sourcePath = "/notebook/$notebookId")
+            ?: return null
+        return try {
+            // Hledame session ID v response — zkusime nejcastejsi pozice
+            val sessions = result.jsonArray.getOrNull(0)?.jsonArray
+            if (sessions != null && sessions.size > 0) {
+                val first = sessions[0].jsonArray
+                // Session ID je typicky na indexu 0 nebo 1
+                first.getOrNull(0)?.jsonPrimitive?.contentOrNull
+                    ?: first.getOrNull(1)?.jsonPrimitive?.contentOrNull
+            } else null
+        } catch (e: Exception) {
+            Log.w(TAG, "getLatestChatSessionId parse: ${e.message}")
+            // Debug: logni celou response at vidime strukturu
+            Log.d(TAG, "ListChatSessions raw: $result")
+            null
+        }
+    }
+
     /** Nacte historii konverzace */
     suspend fun getConversationTurns(
         notebookId: String,

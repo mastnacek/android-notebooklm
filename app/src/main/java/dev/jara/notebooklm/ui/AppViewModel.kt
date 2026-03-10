@@ -217,6 +217,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Detekuj uz stazene artefakty
                 val existingDownloads = detectDownloadedArtifacts(artifacts)
 
+                // Nacti predchozi chat session (jako web verze)
+                val existingSessionId = try { api.getLatestChatSessionId(nb.id) } catch (e: Exception) {
+                    Log.w(TAG, "getLatestChatSessionId: ${e.message}")
+                    null
+                }
+                val convId = existingSessionId ?: java.util.UUID.randomUUID().toString()
+                val chatHistory = if (existingSessionId != null) {
+                    try { api.getConversationTurns(nb.id, existingSessionId) } catch (e: Exception) {
+                        Log.w(TAG, "getConversationTurns: ${e.message}")
+                        emptyList()
+                    }
+                } else emptyList()
+
                 _detail.value = DetailState(
                     sources = sources,
                     summary = guide.summary,
@@ -225,6 +238,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     notes = notes,
                     downloads = existingDownloads,
                     promptSuggestions = guide.suggestions,
+                    conversationId = convId,
+                    chatMessages = chatHistory,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "openNotebook", e)
