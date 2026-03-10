@@ -20,7 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,15 +79,30 @@ internal fun SwipeToDismissNoteCard(
     note: Note,
     onDeleteNote: (String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     var confirmDelete by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                confirmDelete = true
-                false
-            } else false
-        }
+        confirmValueChange = { false }  // nikdy auto-dismiss
     )
+
+    // Detekce překročení prahu swipe — stejný pattern jako NotebookListComponents
+    LaunchedEffect(dismissState) {
+        var triggered = false
+        snapshotFlow { dismissState.progress to dismissState.targetValue }.collect { (progress, target) ->
+            val dragProgress = if (target != SwipeToDismissBoxValue.Settled) progress else 0f
+            if (dragProgress >= 0.4f && !triggered) {
+                triggered = true
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+            if (target == SwipeToDismissBoxValue.Settled && triggered) {
+                triggered = false
+                confirmDelete = true
+            }
+            if (dragProgress < 0.3f) {
+                triggered = false
+            }
+        }
+    }
 
     if (confirmDelete) {
         AlertDialog(

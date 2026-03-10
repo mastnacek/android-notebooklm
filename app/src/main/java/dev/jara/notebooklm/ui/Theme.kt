@@ -248,4 +248,6 @@ object Term {
     val fontSize = 13.sp
     val fontSizeLg = 15.sp
     val fontSizeXl = 18.sp
+    val fontSizeRead = 15.sp      // pro čtený obsah (summary, chat odpovědi)
+    val lineHeightRead = 23.sp    // 1.53× — optimální pro delší texty
 }

@@ -74,13 +74,13 @@ fun MarkdownText(
                             text = "• ",
                             color = Term.orange,
                             fontFamily = Term.font,
-                            fontSize = Term.fontSize,
+                            fontSize = Term.fontSizeRead,
                         )
                         Text(
                             text = parseInlineMarkdown(block.text, color),
                             fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                            lineHeight = Term.fontSize * 1.4f,
+                            fontSize = Term.fontSizeRead,
+                            lineHeight = Term.lineHeightRead,
                         )
                     }
                 }
@@ -93,8 +93,8 @@ fun MarkdownText(
                     Text(
                         text = parseInlineMarkdown(block.text, color),
                         fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                        lineHeight = Term.fontSize * 1.4f,
+                        fontSize = Term.fontSizeRead,
+                        lineHeight = Term.lineHeightRead,
                     )
                 }
             }

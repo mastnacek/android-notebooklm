@@ -297,8 +297,8 @@ internal fun ChatBubble(
                     text = msg.text,
                     color = Term.white,
                     fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                    lineHeight = Term.fontSize * 1.4f,
+                    fontSize = Term.fontSizeRead,
+                    lineHeight = Term.lineHeightRead,
                 )
             } else {
                 MarkdownText(text = msg.text, color = Term.text)
