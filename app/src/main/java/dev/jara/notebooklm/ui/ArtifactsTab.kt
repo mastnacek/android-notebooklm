@@ -462,9 +462,9 @@ internal fun ArtifactCard(
             }
 
             // Akce — kompaktní, na stejném řádku vpravo
-            if (art.url != null && art.status == ArtifactStatus.COMPLETED) {
+            if (art.status == ArtifactStatus.COMPLETED) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (art.type == ArtifactType.AUDIO || art.type == ArtifactType.VIDEO) {
+                    if (art.url != null && (art.type == ArtifactType.AUDIO || art.type == ArtifactType.VIDEO)) {
                         DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
                     }
                     if (art.type == ArtifactType.QUIZ) {
