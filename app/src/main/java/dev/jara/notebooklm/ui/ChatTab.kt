@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -30,8 +31,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.input.pointer.pointerInput
 import dev.jara.notebooklm.rpc.*
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -47,14 +50,19 @@ internal fun ChatTab(
 ) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    var previewText by remember { mutableStateOf<String?>(null) }
 
+    // Scroll na konec — summary item je navíc (+1 pokud existuje)
+    val hasSummary = !detail.summary.isNullOrBlank()
     LaunchedEffect(detail.chatMessages.size) {
         if (detail.chatMessages.isNotEmpty()) {
-            listState.animateScrollToItem(detail.chatMessages.size - 1)
+            val lastIndex = detail.chatMessages.size - 1 + if (hasSummary) 1 else 0
+            listState.animateScrollToItem(lastIndex)
         }
     }
 
-    Column(modifier = modifier) {
+    Box(modifier = modifier) {
+    Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             state = listState,
@@ -125,9 +133,11 @@ internal fun ChatTab(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 for (suggestion in detail.promptSuggestions) {
-                    SuggestionChip(text = suggestion) {
-                        onSendChat(suggestion)
-                    }
+                    SuggestionChip(
+                        text = suggestion,
+                        onClick = { onSendChat(suggestion) },
+                        onPreview = { showing -> previewText = if (showing) suggestion else null },
+                    )
                 }
             }
         }
@@ -186,11 +196,43 @@ internal fun ChatTab(
                 }
             }
         }
+    } // Column
+
+    // Overlay pro náhled otázky — uprostřed obrazovky, teal glassmorphism
+    if (previewText != null) {
+        val overlayBg = Color(0xFF316263).copy(alpha = 0.85f)       // Transformative Teal
+        val overlayBorder = Color(0xFF00F5D4).copy(alpha = 0.4f)    // Plasma Teal
+        val overlayText = Color(0xFFE9EEF5)                         // světle šedomodrá
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(horizontal = 32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(overlayBg)
+                    .border(1.dp, overlayBorder, RoundedCornerShape(16.dp))
+                    .padding(20.dp),
+            ) {
+                Text(
+                    text = previewText ?: "",
+                    color = overlayText,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    lineHeight = Term.lineHeightRead,
+                )
+            }
+        }
     }
+    } // Box
 }
 
 @Composable
-private fun SuggestionChip(text: String, onClick: () -> Unit) {
+private fun SuggestionChip(text: String, onClick: () -> Unit, onPreview: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(DS.chipRadius)
     Text(
         text = text,
@@ -202,7 +244,16 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
             .widthIn(max = 220.dp)
             .clip(shape)
             .border(1.dp, Term.cyan.copy(alpha = DS.borderAlpha), shape)
-            .clickable(onClick = onClick)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onPreview(true) },
+                    onPress = {
+                        tryAwaitRelease()
+                        onPreview(false)
+                    },
+                )
+            }
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }
