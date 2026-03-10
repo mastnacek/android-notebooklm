@@ -113,8 +113,8 @@ internal fun ChatTab(
             }
         }
 
-        // Prompt suggestion chips — zobraz jen když je chat prázdný
-        if (detail.promptSuggestions.isNotEmpty() && detail.chatMessages.isEmpty()) {
+        // Prompt suggestion chips — zobraz vždy když jsou k dispozici (ne během odpovídání)
+        if (detail.promptSuggestions.isNotEmpty() && !detail.chatAnswering) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

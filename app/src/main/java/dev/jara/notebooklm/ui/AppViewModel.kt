@@ -205,7 +205,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val api = NotebookLmApi(httpClient, tokens)
                 val sources = api.getSources(nb.id)
-                val summary = api.getSummary(nb.id)
+                val guide = api.getNotebookGuide(nb.id)
                 val artifacts = try { api.listArtifacts(nb.id) } catch (e: Exception) {
                     Log.w(TAG, "listArtifacts: ${e.message}")
                     emptyList()
@@ -217,20 +217,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Detekuj uz stazene artefakty
                 val existingDownloads = detectDownloadedArtifacts(artifacts)
 
-                // Prompt suggestions — paralelne, bez blokace
-                val suggestions = try { api.getPromptSuggestions(nb.id) } catch (e: Exception) {
-                    Log.w(TAG, "getPromptSuggestions: ${e.message}")
-                    emptyList()
-                }
-
                 _detail.value = DetailState(
                     sources = sources,
-                    summary = summary,
+                    summary = guide.summary,
                     loading = false,
                     artifacts = artifacts,
                     notes = notes,
                     downloads = existingDownloads,
-                    promptSuggestions = suggestions,
+                    promptSuggestions = guide.suggestions,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "openNotebook", e)
@@ -326,6 +320,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     ChatRole.ASSISTANT, answer
                 )
                 _detail.value = _detail.value.copy(chatMessages = withAnswer, chatAnswering = false)
+                // Refresh suggestions po odpovědi
+                try {
+                    val guide = api.getNotebookGuide(nb.id)
+                    _detail.value = _detail.value.copy(promptSuggestions = guide.suggestions)
+                } catch (_: Exception) {}
             } catch (e: Exception) {
                 Log.e(TAG, "sendChat", e)
                 _detail.value = _detail.value.copy(chatAnswering = false)

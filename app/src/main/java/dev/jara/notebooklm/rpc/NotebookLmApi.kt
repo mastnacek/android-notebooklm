@@ -75,7 +75,10 @@ class NotebookLmApi(
     }
 
     /** Rust: api::get_notebook_summary — RPC VfAZjd */
-    suspend fun getSummary(notebookId: String): String? {
+    /** Vrátí summary + prompt suggestions z jednoho RPC (GenerateNotebookGuide). */
+    data class NotebookGuide(val summary: String?, val suggestions: List<String>)
+
+    suspend fun getNotebookGuide(notebookId: String): NotebookGuide {
         val params = buildJsonArray {
             add(JsonPrimitive(notebookId))
             add(buildJsonArray { add(JsonPrimitive(2)) })
@@ -83,21 +86,55 @@ class NotebookLmApi(
         val result = rpcCall(
             RpcMethod.SUMMARIZE, params,
             sourcePath = "/notebook/$notebookId"
-        ) ?: return null
+        ) ?: return NotebookGuide(null, emptyList())
 
-        return try {
+        val summary = try {
             val inner = result.jsonArray.getOrNull(0)?.jsonArray?.getOrNull(0)
-            // Muze byt string nebo dalsi array — zkus oba
             inner?.jsonPrimitive?.contentOrNull
                 ?: inner?.jsonArray?.getOrNull(0)?.jsonPrimitive?.contentOrNull
         } catch (e: Exception) {
-            Log.e(TAG, "getSummary parse: ${e.message}")
-            // Fallback — zkus najit prvni string v nested strukture
-            try {
-                findFirstString(result)
-            } catch (_: Exception) { null }
+            Log.e(TAG, "getNotebookGuide summary parse: ${e.message}")
+            try { findFirstString(result) } catch (_: Exception) { null }
         }
+
+        val suggestions = try {
+            val list = mutableListOf<String>()
+            // [0][1][0] = [[otázka, prompt], ...]
+            val questionsArr = result.jsonArray
+                .getOrNull(0)?.jsonArray
+                ?.getOrNull(1)?.jsonArray
+                ?.getOrNull(0)?.jsonArray
+            if (questionsArr != null) {
+                for (pair in questionsArr) {
+                    val text = pair.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull
+                    if (!text.isNullOrBlank()) list.add(text)
+                }
+            }
+            // Fallback: [0][5][0]
+            if (list.isEmpty()) {
+                val altArr = result.jsonArray
+                    .getOrNull(0)?.jsonArray
+                    ?.getOrNull(5)?.jsonArray
+                    ?.getOrNull(0)?.jsonArray
+                if (altArr != null) {
+                    for (pair in altArr) {
+                        val text = pair.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull
+                        if (!text.isNullOrBlank()) list.add(text)
+                    }
+                }
+            }
+            Log.i(TAG, "getNotebookGuide: ${list.size} suggestions")
+            list.take(5)
+        } catch (e: Exception) {
+            Log.w(TAG, "getNotebookGuide suggestions parse: ${e.message}")
+            emptyList()
+        }
+
+        return NotebookGuide(summary, suggestions)
     }
+
+    @Deprecated("Použij getNotebookGuide() — vrací summary + suggestions najednou")
+    suspend fun getSummary(notebookId: String): String? = getNotebookGuide(notebookId).summary
 
     /** Chat — GenerateFreeFormStreamed (specialni endpoint, ne batchexecute) */
     suspend fun sendChat(
@@ -446,40 +483,6 @@ class NotebookLmApi(
     }
 
     /** Generuje AI navrhy otazek pro chat */
-    suspend fun getPromptSuggestions(notebookId: String): List<String> {
-        val params = buildJsonArray {
-            add(JsonPrimitive(notebookId))
-        }
-        val result = rpcCall(
-            RpcMethod.GENERATE_PROMPT_SUGGESTIONS, params,
-            sourcePath = "/notebook/$notebookId",
-        ) ?: return emptyList()
-
-        return try {
-            // Ocekavany format: [[["otazka1"], ["otazka2"], ["otazka3"]]]
-            val suggestions = mutableListOf<String>()
-            val outer = result.jsonArray
-            for (item in outer) {
-                try {
-                    // Zkus ruzne formaty — [["text"]], ["text"], nebo primy text
-                    val text = when {
-                        item is JsonPrimitive -> item.contentOrNull
-                        item.jsonArray.getOrNull(0) is JsonPrimitive ->
-                            item.jsonArray[0].jsonPrimitive.contentOrNull
-                        item.jsonArray.getOrNull(0)?.jsonArray?.getOrNull(0) is JsonPrimitive ->
-                            item.jsonArray[0].jsonArray[0].jsonPrimitive.contentOrNull
-                        else -> null
-                    }
-                    if (!text.isNullOrBlank()) suggestions.add(text)
-                } catch (_: Exception) {}
-            }
-            Log.i(TAG, "getPromptSuggestions: ${suggestions.size} suggestions")
-            suggestions.take(5)
-        } catch (e: Exception) {
-            Log.w(TAG, "getPromptSuggestions parse: ${e.message}")
-            emptyList()
-        }
-    }
 
     /** Získá info o účtu + AI model */
     suspend fun getAccountInfo(): AccountInfo? {
