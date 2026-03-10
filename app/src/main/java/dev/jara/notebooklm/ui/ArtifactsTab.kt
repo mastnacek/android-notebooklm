@@ -38,6 +38,7 @@ internal fun ArtifactsTab(
     onDownloadAudio: (Artifact) -> Unit,
     onGenerateArtifact: (GenerateType, GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloads: Map<String, DownloadState>,
     modifier: Modifier = Modifier,
@@ -85,7 +86,7 @@ internal fun ArtifactsTab(
                 items(detail.artifacts, key = { it.id }) { art ->
                     SwipeToDismissArtifactCard(
                         art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml,
-                        onDeleteArtifact, downloads[art.id],
+                        onExportQuiz, onDeleteArtifact, downloads[art.id],
                         haptic, scope, snackbarHostState,
                     )
                 }
@@ -342,6 +343,7 @@ internal fun SwipeToDismissArtifactCard(
     onPlayAudio: (String, String) -> Unit,
     onDownloadAudio: (Artifact) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloadState: DownloadState?,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
@@ -411,7 +413,7 @@ internal fun SwipeToDismissArtifactCard(
         },
         enableDismissFromStartToEnd = false,
     ) {
-        ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, downloadState)
+        ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, onExportQuiz, downloadState)
     }
 }
 
@@ -421,6 +423,7 @@ internal fun ArtifactCard(
     onPlayAudio: (String, String) -> Unit,
     onDownloadAudio: (Artifact) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onExportQuiz: (String, String) -> Unit,
     downloadState: DownloadState?,
 ) {
     val shape = RoundedCornerShape(14.dp)
@@ -466,6 +469,7 @@ internal fun ArtifactCard(
                     }
                     if (art.type == ArtifactType.QUIZ) {
                         DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
+                        DetailPill("📤", Term.cyan) { onExportQuiz(art.id, art.title) }
                     }
 
                     if (!isDownloading) {

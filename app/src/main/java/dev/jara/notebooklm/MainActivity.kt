@@ -193,6 +193,7 @@ class MainActivity : ComponentActivity() {
                         dedup = detailDedupState,
                         onGenerateArtifact = { type, opts -> viewModel.generateArtifact(type, opts) },
                         onOpenInteractiveHtml = { viewModel.openInteractiveHtml(it) },
+                        onExportQuiz = { id, title -> viewModel.exportQuizForBrainGate(this@MainActivity, id, title) },
                         onDeleteArtifact = { viewModel.deleteArtifact(it) },
                         onDeleteNote = { viewModel.deleteNote(it) },
                     )

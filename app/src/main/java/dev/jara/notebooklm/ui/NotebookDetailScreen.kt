@@ -38,6 +38,7 @@ fun NotebookDetailScreen(
     dedup: DeduplicationState,
     onGenerateArtifact: (GenerateType, GenerateOptions) -> Unit,
     onOpenInteractiveHtml: (String) -> Unit,
+    onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     onDeleteNote: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -205,7 +206,7 @@ fun NotebookDetailScreen(
                 )
                 DetailTab.ARTIFACTS -> ArtifactsTab(
                     detail, onPlayAudio, onDownloadAudio, onGenerateArtifact,
-                    onOpenInteractiveHtml, onDeleteArtifact, detail.downloads,
+                    onOpenInteractiveHtml, onExportQuiz, onDeleteArtifact, detail.downloads,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 DetailTab.NOTES -> NotesTab(

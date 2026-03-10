@@ -487,6 +487,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun exportQuizForBrainGate(context: Context, artifactId: String, artifactTitle: String) {
+        val tokens = authManager.loadTokens() ?: return
+        val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
+        viewModelScope.launch {
+            try {
+                _error.value = "Exportuji kvíz..."
+                val api = NotebookLmApi(httpClient, tokens)
+                val html = api.getInteractiveHtml(nb.id, artifactId)
+                if (html != null) {
+                    val ok = QuizExporter.exportAndShare(context, html, artifactTitle)
+                    if (!ok) _error.value = "Nepodařilo se parsovat kvíz"
+                } else {
+                    _error.value = "HTML obsah nenalezen"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "exportQuiz", e)
+                _error.value = "Chyba exportu: ${e.message}"
+            }
+        }
+    }
+
     // ── Favorites & Sort ──
 
     fun toggleFavorite(notebookId: String) {
