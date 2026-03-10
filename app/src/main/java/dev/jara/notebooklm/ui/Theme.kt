@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -24,7 +23,6 @@ import androidx.compose.ui.unit.sp
 object Gruvbox {
     val Dark0Hard = Color(0xFF1D2021)
     val Dark0 = Color(0xFF282828)
-    val Dark0Soft = Color(0xFF32302F)
     val Dark1 = Color(0xFF3C3836)
     val Dark2 = Color(0xFF504945)
     val Dark3 = Color(0xFF665C54)
@@ -207,12 +205,7 @@ fun NotebookLmTheme(
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ZPETNA KOMPATIBILITA — Term objekt deleguje na aktualni motiv
-// Vsech 283 referenci v UI souborech zustava beze zmeny.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ══════════════════════════════════════════════════════════════════════════════
-// DESIGN SYSTEM KONSTANTY — standardizovane hodnoty pro konzistentni UI
+// DESIGN SYSTEM KONSTANTY
 // ══════════════════════════════════════════════════════════════════════════════
 
 object DS {
