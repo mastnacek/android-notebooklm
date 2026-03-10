@@ -14,7 +14,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModelProvider
@@ -103,7 +105,10 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // Back gesto: z detailu zpět na seznam (místo zavření appky)
+            // Back gesto
+            BackHandler(enabled = screen is Screen.Quiz) {
+                viewModel.closeQuiz()
+            }
             BackHandler(enabled = screen is Screen.NotebookDetail) {
                 viewModel.goBack()
             }
@@ -115,6 +120,10 @@ class MainActivity : ComponentActivity() {
                         // List -> Detail: slide in from right
                         slideInHorizontally { it / 3 } + fadeIn(tween(300)) togetherWith
                             slideOutHorizontally { -it / 3 } + fadeOut(tween(200))
+                    } else if (targetState is Screen.Quiz || initialState is Screen.Quiz) {
+                        // Quiz: slide up/down
+                        slideInVertically { it } + fadeIn(tween(300)) togetherWith
+                            slideOutVertically { -it / 3 } + fadeOut(tween(200))
                     } else if (initialState is Screen.NotebookDetail) {
                         // Detail -> List: slide in from left
                         slideInHorizontally { -it / 3 } + fadeIn(tween(300)) togetherWith
@@ -192,10 +201,16 @@ class MainActivity : ComponentActivity() {
                         onDismissDedup = { viewModel.dismissDetailDedup() },
                         dedup = detailDedupState,
                         onGenerateArtifact = { type, opts -> viewModel.generateArtifact(type, opts) },
-                        onOpenInteractiveHtml = { viewModel.openInteractiveHtml(it) },
+                        onOpenQuiz = { id, title -> viewModel.openQuiz(id, title) },
                         onExportQuiz = { id, title -> viewModel.exportQuizForBrainGate(this@MainActivity, id, title) },
                         onDeleteArtifact = { viewModel.deleteArtifact(it) },
                         onDeleteNote = { viewModel.deleteNote(it) },
+                    )
+
+                    is Screen.Quiz -> QuizScreen(
+                        questions = s.questions,
+                        title = s.title,
+                        onBack = { viewModel.closeQuiz() },
                     )
                 }
             }

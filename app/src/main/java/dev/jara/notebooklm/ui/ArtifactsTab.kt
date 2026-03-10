@@ -37,7 +37,7 @@ internal fun ArtifactsTab(
     onPlayAudio: (String, String) -> Unit,
     onDownloadAudio: (Artifact) -> Unit,
     onGenerateArtifact: (GenerateType, GenerateOptions) -> Unit,
-    onOpenInteractiveHtml: (String) -> Unit,
+    onOpenQuiz: (String, String) -> Unit,
     onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloads: Map<String, DownloadState>,
@@ -85,7 +85,7 @@ internal fun ArtifactsTab(
 
                 items(detail.artifacts, key = { it.id }) { art ->
                     SwipeToDismissArtifactCard(
-                        art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml,
+                        art, onPlayAudio, onDownloadAudio, onOpenQuiz,
                         onExportQuiz, onDeleteArtifact, downloads[art.id],
                         haptic, scope, snackbarHostState,
                     )
@@ -342,7 +342,7 @@ internal fun SwipeToDismissArtifactCard(
     art: Artifact,
     onPlayAudio: (String, String) -> Unit,
     onDownloadAudio: (Artifact) -> Unit,
-    onOpenInteractiveHtml: (String) -> Unit,
+    onOpenQuiz: (String, String) -> Unit,
     onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     downloadState: DownloadState?,
@@ -413,7 +413,7 @@ internal fun SwipeToDismissArtifactCard(
         },
         enableDismissFromStartToEnd = false,
     ) {
-        ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenInteractiveHtml, onExportQuiz, downloadState)
+        ArtifactCard(art, onPlayAudio, onDownloadAudio, onOpenQuiz, onExportQuiz, downloadState)
     }
 }
 
@@ -422,7 +422,7 @@ internal fun ArtifactCard(
     art: Artifact,
     onPlayAudio: (String, String) -> Unit,
     onDownloadAudio: (Artifact) -> Unit,
-    onOpenInteractiveHtml: (String) -> Unit,
+    onOpenQuiz: (String, String) -> Unit,
     onExportQuiz: (String, String) -> Unit,
     downloadState: DownloadState?,
 ) {
@@ -468,7 +468,7 @@ internal fun ArtifactCard(
                         DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
                     }
                     if (art.type == ArtifactType.QUIZ) {
-                        DetailPill("🎮", Term.orange) { onOpenInteractiveHtml(art.id) }
+                        DetailPill("🎮", Term.orange) { onOpenQuiz(art.id, art.title) }
                         DetailPill("📤", Term.cyan) { onExportQuiz(art.id, art.title) }
                     }
 

@@ -4,6 +4,7 @@ import dev.jara.notebooklm.rpc.Artifact
 import dev.jara.notebooklm.rpc.ChatMessage
 import dev.jara.notebooklm.rpc.Note
 import dev.jara.notebooklm.rpc.Notebook
+import dev.jara.notebooklm.rpc.QuizQuestion
 import dev.jara.notebooklm.rpc.Source
 
 /** Navigacni stav aplikace */
@@ -11,6 +12,7 @@ sealed class Screen {
     object Login : Screen()
     object NotebookList : Screen()
     data class NotebookDetail(val notebook: Notebook) : Screen()
+    data class Quiz(val questions: List<QuizQuestion>, val title: String, val sourceNotebook: Notebook) : Screen()
 }
 
 /** Tab v detailu notebooku */

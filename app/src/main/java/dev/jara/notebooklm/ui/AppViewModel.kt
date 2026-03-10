@@ -109,11 +109,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     internal val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> get() = _error
 
-    private val _interactiveHtml = MutableStateFlow<String?>(null)
-    val interactiveHtml: StateFlow<String?> get() = _interactiveHtml
-
-    fun dismissInteractiveHtml() { _interactiveHtml.value = null }
-
     val categories: StateFlow<Map<String, String>> get() = _categories
 
     init {
@@ -468,23 +463,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun openInteractiveHtml(artifactId: String) {
+    fun openQuiz(artifactId: String, artifactTitle: String) {
         val tokens = authManager.loadTokens() ?: return
         val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
         viewModelScope.launch {
             try {
+                _error.value = "Načítám kvíz..."
                 val api = NotebookLmApi(httpClient, tokens)
                 val html = api.getInteractiveHtml(nb.id, artifactId)
                 if (html != null) {
-                    _interactiveHtml.value = html
+                    val questions = QuizExporter.parseQuizHtml(html)
+                    if (!questions.isNullOrEmpty()) {
+                        _error.value = null
+                        _screen.value = Screen.Quiz(questions, artifactTitle, nb)
+                    } else {
+                        _error.value = "Kvíz nelze parsovat"
+                    }
                 } else {
                     _error.value = "HTML obsah nenalezen"
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "openInteractiveHtml", e)
+                Log.e(TAG, "openQuiz", e)
                 _error.value = "Chyba: ${e.message}"
             }
         }
+    }
+
+    fun closeQuiz() {
+        val s = _screen.value as? Screen.Quiz ?: return
+        _screen.value = Screen.NotebookDetail(s.sourceNotebook)
     }
 
     fun exportQuizForBrainGate(context: Context, artifactId: String, artifactTitle: String) {

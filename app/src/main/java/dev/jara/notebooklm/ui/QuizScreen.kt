@@ -1,0 +1,340 @@
+package dev.jara.notebooklm.ui
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.jara.notebooklm.rpc.AnswerOption
+import dev.jara.notebooklm.rpc.QuizQuestion
+import kotlin.random.Random
+
+// ══════════════════════════════════════════════════════════════════════════════
+// QUIZ SCREEN — interaktivni kviz s michanim odpovedi
+// ══════════════════════════════════════════════════════════════════════════════
+
+private data class ShuffledQuestion(
+    val original: QuizQuestion,
+    val options: List<AnswerOption>,
+    val correctIndex: Int,
+)
+
+@Composable
+fun QuizScreen(
+    questions: List<QuizQuestion>,
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Zamichane otazky — deterministicky seed pro preziti rotace
+    val prepared = remember(questions) {
+        questions.mapIndexed { i, q ->
+            val shuffled = q.options.shuffled(Random(i.toLong() + title.hashCode()))
+            ShuffledQuestion(q, shuffled, shuffled.indexOfFirst { it.isCorrect })
+        }
+    }
+
+    var currentIndex by rememberSaveable { mutableIntStateOf(0) }
+    var score by rememberSaveable { mutableIntStateOf(0) }
+    var selectedIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var finished by rememberSaveable { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    if (finished || currentIndex >= prepared.size) {
+        QuizResultScreen(
+            score = score,
+            total = prepared.size,
+            title = title,
+            onRestart = {
+                currentIndex = 0; score = 0; selectedIndex = -1; finished = false
+            },
+            onBack = onBack,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val q = prepared[currentIndex]
+    val answered = selectedIndex >= 0
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Term.bg)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp),
+    ) {
+        // ── Header: progress + zpet ──
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "‹",
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 20.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(DS.microRadius))
+                    .clickable { onBack() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = title,
+                color = Term.white,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${currentIndex + 1}/${prepared.size}",
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { (currentIndex + 1).toFloat() / prepared.size },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = Term.cyan,
+            trackColor = Term.border,
+        )
+
+        // ── Otazka — horni cast ──
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = q.original.question,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeXl,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+
+                // Hint — po odpovedi
+                if (answered && q.original.hint.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val hintShape = RoundedCornerShape(DS.cardRadius)
+                    Text(
+                        text = q.original.hint,
+                        color = Term.yellow,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .clip(hintShape)
+                            .background(Term.yellow.copy(alpha = 0.08f))
+                            .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintShape)
+                            .padding(12.dp),
+                    )
+                }
+            }
+        }
+
+        // ── Odpovedi — dole (thumb area) ──
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 12.dp),
+        ) {
+            q.options.take(4).forEachIndexed { i, option ->
+                QuizAnswerButton(
+                    text = option.text,
+                    state = when {
+                        !answered -> AnswerState.DEFAULT
+                        i == q.correctIndex -> AnswerState.CORRECT
+                        i == selectedIndex -> AnswerState.WRONG
+                        else -> AnswerState.NEUTRAL
+                    },
+                    onClick = {
+                        if (!answered) {
+                            selectedIndex = i
+                            if (i == q.correctIndex) {
+                                score++
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                        }
+                    },
+                )
+            }
+
+            // Tlacitko Dalsi — po odpovedi
+            if (answered) {
+                Spacer(modifier = Modifier.height(4.dp))
+                val isLast = currentIndex >= prepared.size - 1
+                val nextShape = RoundedCornerShape(DS.buttonRadius)
+                Text(
+                    text = if (isLast) "Zobrazit výsledky" else "Další otázka →",
+                    color = Term.cyan,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(nextShape)
+                        .background(Term.cyan.copy(alpha = DS.selectionAlpha))
+                        .clickable {
+                            if (isLast) {
+                                finished = true
+                            } else {
+                                currentIndex++
+                                selectedIndex = -1
+                            }
+                        }
+                        .padding(vertical = 14.dp),
+                )
+            }
+        }
+    }
+}
+
+// ── Answer Button ──
+
+private enum class AnswerState { DEFAULT, CORRECT, WRONG, NEUTRAL }
+
+@Composable
+private fun QuizAnswerButton(text: String, state: AnswerState, onClick: () -> Unit) {
+    val bgColor by animateColorAsState(
+        when (state) {
+            AnswerState.DEFAULT -> Term.surface
+            AnswerState.CORRECT -> Term.green.copy(alpha = 0.15f)
+            AnswerState.WRONG -> Term.red.copy(alpha = 0.15f)
+            AnswerState.NEUTRAL -> Term.surface
+        },
+        animationSpec = tween(300),
+        label = "answerBg",
+    )
+    val borderColor by animateColorAsState(
+        when (state) {
+            AnswerState.DEFAULT -> Term.border
+            AnswerState.CORRECT -> Term.green
+            AnswerState.WRONG -> Term.red
+            AnswerState.NEUTRAL -> Term.border.copy(alpha = 0.3f)
+        },
+        animationSpec = tween(300),
+        label = "answerBorder",
+    )
+    val textColor by animateColorAsState(
+        when (state) {
+            AnswerState.DEFAULT -> Term.text
+            AnswerState.CORRECT -> Term.green
+            AnswerState.WRONG -> Term.red
+            AnswerState.NEUTRAL -> Term.disabled
+        },
+        animationSpec = tween(300),
+        label = "answerText",
+    )
+    val icon = when (state) {
+        AnswerState.CORRECT -> "✓ "
+        AnswerState.WRONG -> "✗ "
+        else -> ""
+    }
+
+    val shape = RoundedCornerShape(DS.buttonRadius)
+    Text(
+        text = "$icon$text",
+        color = textColor,
+        fontFamily = Term.font,
+        fontSize = Term.fontSizeLg,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(bgColor)
+            .border(DS.borderWidth, borderColor, shape)
+            .clickable(enabled = state == AnswerState.DEFAULT, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    )
+}
+
+// ── Result Screen ──
+
+@Composable
+private fun QuizResultScreen(
+    score: Int,
+    total: Int,
+    title: String,
+    onRestart: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val pct = if (total > 0) (score * 100) / total else 0
+    val resultColor = when {
+        pct >= 80 -> Term.green
+        pct >= 50 -> Term.yellow
+        else -> Term.red
+    }
+    val resultText = when {
+        pct >= 80 -> "Výborně!"
+        pct >= 50 -> "Dobře!"
+        else -> "Zkus znovu"
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Term.bg)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = title,
+            color = Term.textDim,
+            fontFamily = Term.font,
+            fontSize = Term.fontSize,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "$score / $total",
+            color = resultColor,
+            fontFamily = Term.font,
+            fontSize = 48.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "$pct%  ·  $resultText",
+            color = resultColor,
+            fontFamily = Term.font,
+            fontSize = Term.fontSizeLg,
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DetailPill("↩ Opakovat", Term.cyan) { onRestart() }
+            DetailPill("✕ Zpět", Term.textDim) { onBack() }
+        }
+    }
+}
