@@ -106,9 +106,9 @@ val LightAppColors = AppColors(
     orange = Gruvbox.FadedOrange,
     red = Gruvbox.FadedRed,
     purple = Gruvbox.FadedPurple,
-    text = Gruvbox.Dark2,
-    textDim = Gruvbox.Light4,
-    white = Gruvbox.Dark1,
+    text = Gruvbox.Dark0Hard,       // #1D2021 — max kontrast na Light0 pozadí
+    textDim = Gruvbox.Dark4,        // #7C6F64 — čitelnější než Light4
+    white = Gruvbox.Dark0,          // #282828 — důrazný text
     border = Gruvbox.Light3,
 )
 
@@ -168,9 +168,9 @@ fun NotebookLmTheme(
             surfaceVariant = Gruvbox.Light2,
             onPrimary = Gruvbox.Light0,
             onSecondary = Gruvbox.Light0,
-            onBackground = Gruvbox.Dark1,
-            onSurface = Gruvbox.Dark1,
-            onSurfaceVariant = Gruvbox.Dark4,
+            onBackground = Gruvbox.Dark0Hard,
+            onSurface = Gruvbox.Dark0Hard,
+            onSurfaceVariant = Gruvbox.Dark3,
             error = Gruvbox.FadedRed,
             outline = Gruvbox.Light4,
         )
