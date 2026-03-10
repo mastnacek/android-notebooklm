@@ -493,9 +493,20 @@ class NotebookLmApi(
                 val roleCode = arr.getOrNull(2)?.jsonPrimitive?.intOrNull ?: continue
                 val text = when (roleCode) {
                     1 -> arr.getOrNull(3)?.jsonPrimitive?.contentOrNull  // user
-                    2 -> arr.getOrNull(4)?.jsonArray                     // AI
-                        ?.getOrNull(0)?.jsonArray
-                        ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
+                    2 -> {
+                        // AI odpověď: [4][0][0] nebo [4][0][0][0]
+                        val field4 = arr.getOrNull(4)?.jsonArray
+                        val inner = field4?.getOrNull(0)?.jsonArray
+                        val candidate = inner?.getOrNull(0)
+                        when {
+                            candidate is JsonPrimitive -> candidate.contentOrNull
+                            candidate is JsonArray -> candidate.getOrNull(0)?.jsonPrimitive?.contentOrNull
+                            else -> {
+                                Log.w(TAG, "getConversationTurns: unexpected AI text structure at [4][0][0]: ${candidate?.javaClass?.simpleName}, preview: ${candidate.toString().take(100)}")
+                                null
+                            }
+                        }
+                    }
                     else -> null
                 } ?: continue
                 messages.add(ChatMessage(
@@ -506,6 +517,11 @@ class NotebookLmApi(
         } catch (e: Exception) {
             Log.w(TAG, "getConversationTurns parse: ${e.message}")
         }
+        // API vrací turns od nejnovějšího — otočíme na chronologické pořadí
+        messages.reverse()
+        val userCount = messages.count { it.role == ChatRole.USER }
+        val aiCount = messages.count { it.role == ChatRole.ASSISTANT }
+        Log.i(TAG, "getConversationTurns: $userCount user + $aiCount AI = ${messages.size} total")
         return messages
     }
 
