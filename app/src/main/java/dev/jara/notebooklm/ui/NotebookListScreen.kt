@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -11,6 +12,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -143,119 +146,11 @@ fun NotebookListScreen(
                 )
             }
         },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = barsVisible || WindowInsets.isImeVisible,
-                enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it },
-                exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it },
-            ) {
-            Column(modifier = Modifier
-                .background(Term.bg)
-                .navigationBarsPadding()
-                .animateContentSize(animationSpec = tween(250))
-            ) {
-                // ── Search bar (thumb zone) ──
-                val modeColor by animateColorAsState(
-                    targetValue = if (semanticMode) Term.purple else Term.green,
-                    animationSpec = tween(250),
-                    label = "mode_color",
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Term.bg)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(DS.searchRadius))
-                        .background(if (semanticMode) Term.purple.copy(alpha = 0.06f) else Term.surfaceLight)
-                        .border(DS.borderWidth, modeColor.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.searchRadius))
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Mode toggle icon — tap to switch
-                    Text(
-                        text = if (semanticMode) "✨" else "🔍",
-                        fontSize = 18.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                semanticMode = !semanticMode
-                                if (!semanticMode) onClearSemantic()
-                            }
-                            .padding(end = 10.dp),
-                    )
-
-                    // Search input
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
-                        textStyle = TextStyle(
-                            color = Term.white,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                        ),
-                        cursorBrush = SolidColor(modeColor),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
-                            onDone = {},
-                        ),
-                        decorationBox = { inner ->
-                            Box {
-                                if (query.isEmpty()) {
-                                    Text(
-                                        text = if (semanticMode) "← hledej významem…" else "← hledej v názvech…",
-                                        color = Term.textDim,
-                                        fontFamily = Term.font,
-                                        fontSize = Term.fontSize,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-
-                    // Clear
-                    if (query.isNotEmpty()) {
-                        Text(
-                            text = "✕",
-                            color = Term.textDim,
-                            fontSize = Term.fontSize,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { query = ""; onClearSemantic() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-                }
-                if (!WindowInsets.isImeVisible) {
-                    BottomActionBar(
-                        onCreateNotebook = { showCreateDialog = true },
-                        onRefresh = onRefresh,
-                        onSettings = onSettings,
-                        hasApiKey = hasApiKey,
-                        onStartDedup = { if (!dedup.running) onStartDedup() },
-                        onCycleSort = onCycleSort,
-                        sortLabel = sortMode.label,
-                        onEmbedAll = { onEmbedNotebooks(null) },
-                        onLogout = onLogout,
-                        onScanSourcesAll = { onScanSources(null) },
-                    )
-                }
-            }
-            } // AnimatedVisibility
-        },
-    ) { innerPadding ->
+    ) { _ ->
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(innerPadding)
-            .consumeWindowInsets(innerPadding)
     ) {
         // Selection mode
         var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -303,75 +198,8 @@ fun NotebookListScreen(
             )
         }
 
-        // ── Header (scroll-hide) ──
+        // ── Header je overlay v Box dole ──
         LaunchedEffect(selectionMode) { if (selectionMode) barsVisible = true }
-
-        AnimatedVisibility(
-            visible = barsVisible,
-            enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
-            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Term.surface)
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "NotebookLM",
-                        color = Term.green,
-                        fontFamily = Term.font,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "${notebooks.size}",
-                        color = Term.bg,
-                        fontFamily = Term.font,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Term.green.copy(alpha = 0.6f))
-                            .padding(horizontal = 7.dp, vertical = 2.dp),
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    // Indikátor přihlášení
-                    Text(
-                        text = "●",
-                        color = Term.green,
-                        fontSize = 10.sp,
-                    )
-                }
-                // Model a kontext pod nadpisem
-                if (accountInfo != null) {
-                    val tierColor = when (accountInfo.tier) {
-                        AccountTier.ULTRA -> Term.orange
-                        AccountTier.PRO -> Term.cyan
-                        AccountTier.PLUS -> Term.purple
-                        AccountTier.FREE -> Term.textDim
-                    }
-                    val modelShort = accountInfo.modelName
-                        .replace("GeminiPro", "Gemini ")
-                        .replace("HighThinking", "· Thinking")
-                        .replace("384K", "384K ")
-                    Text(
-                        text = "${accountInfo.tier.label} · $modelShort · ${accountInfo.contextLimit / 1000}K ctx",
-                        color = tierColor,
-                        fontFamily = Term.font,
-                        fontSize = 10.sp,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                }
-
-                StatusLegend()
-            }
-        }
 
         // ── Selection action bar ──
         if (selectionMode) {
@@ -573,7 +401,8 @@ fun NotebookListScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                // Top 100dp = prostor pod overlay headerem, bottom 120dp = nad overlay bottom barem
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 100.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (sortMode == NotebookSort.CATEGORY) {
@@ -755,6 +584,178 @@ fun NotebookListScreen(
                 onFilterChange = onFacetFilterChange,
                 onDismiss = { showFilterSheet = false },
             )
+        }
+        // ── Header overlay — nepohybuje seznamem ──
+        AnimatedVisibility(
+            visible = barsVisible,
+            enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
+            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            Column(modifier = Modifier.background(Term.bg)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Term.surface)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "NotebookLM",
+                        color = Term.green,
+                        fontFamily = Term.font,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${notebooks.size}",
+                        color = Term.bg,
+                        fontFamily = Term.font,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Term.green.copy(alpha = 0.6f))
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "●",
+                        color = Term.green,
+                        fontSize = 10.sp,
+                    )
+                }
+                if (accountInfo != null) {
+                    val tierColor = when (accountInfo.tier) {
+                        AccountTier.ULTRA -> Term.orange
+                        AccountTier.PRO -> Term.cyan
+                        AccountTier.PLUS -> Term.purple
+                        AccountTier.FREE -> Term.textDim
+                    }
+                    val modelShort = accountInfo.modelName
+                        .replace("GeminiPro", "Gemini ")
+                        .replace("HighThinking", "· Thinking")
+                        .replace("384K", "384K ")
+                    Text(
+                        text = "${accountInfo.tier.label} · $modelShort · ${accountInfo.contextLimit / 1000}K ctx",
+                        color = tierColor,
+                        fontFamily = Term.font,
+                        fontSize = 10.sp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+                StatusLegend()
+            }
+        }
+
+        // ── Bottom bar overlay — nepohybuje seznamem ──
+        AnimatedVisibility(
+            visible = barsVisible || WindowInsets.isImeVisible,
+            enter = slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it },
+            exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { it },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Column(modifier = Modifier
+                .background(Term.bg)
+                .navigationBarsPadding()
+                .animateContentSize(animationSpec = tween(250))
+            ) {
+                // ── Search bar (thumb zone) ──
+                val modeColor by animateColorAsState(
+                    targetValue = if (semanticMode) Term.purple else Term.green,
+                    animationSpec = tween(250),
+                    label = "mode_color",
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Term.bg)
+                        .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp)
+                        .clip(RoundedCornerShape(DS.searchRadius))
+                        .background(if (semanticMode) Term.purple.copy(alpha = 0.06f) else Term.surfaceLight)
+                        .border(DS.borderWidth, modeColor.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.searchRadius))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Mode toggle icon — tap to switch
+                    Text(
+                        text = if (semanticMode) "✨" else "🔍",
+                        fontSize = 18.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                semanticMode = !semanticMode
+                                if (!semanticMode) onClearSemantic()
+                            }
+                            .padding(end = 10.dp),
+                    )
+
+                    // Search input
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it; if (!semanticMode) onClearSemantic() },
+                        textStyle = TextStyle(
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        ),
+                        cursorBrush = SolidColor(modeColor),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (semanticMode) ImeAction.Search else ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { if (semanticMode && query.isNotBlank()) onSemanticSearch(query) },
+                            onDone = {},
+                        ),
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        text = if (semanticMode) "← hledej významem…" else "← hledej v názvech…",
+                                        color = Term.textDim,
+                                        fontFamily = Term.font,
+                                        fontSize = Term.fontSize,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    // Clear
+                    if (query.isNotEmpty()) {
+                        Text(
+                            text = "✕",
+                            color = Term.textDim,
+                            fontSize = Term.fontSize,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { query = ""; onClearSemantic() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                if (!WindowInsets.isImeVisible) {
+                    BottomActionBar(
+                        onCreateNotebook = { showCreateDialog = true },
+                        onRefresh = onRefresh,
+                        onSettings = onSettings,
+                        hasApiKey = hasApiKey,
+                        onStartDedup = { if (!dedup.running) onStartDedup() },
+                        onCycleSort = onCycleSort,
+                        sortLabel = sortMode.label,
+                        onEmbedAll = { onEmbedNotebooks(null) },
+                        onLogout = onLogout,
+                        onScanSourcesAll = { onScanSources(null) },
+                    )
+                }
+            }
         }
     } // Box
     } // Scaffold

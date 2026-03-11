@@ -182,7 +182,12 @@ suspend fun NotebookLmApi.getInteractiveHtml(notebookId: String, artifactId: Str
     }
     val result = rpcCall(RpcMethod.GET_ARTIFACT, params, sourcePath = "/notebook/$notebookId")
         ?: return null
-    Log.i(TAG, "getInteractiveHtml raw: ${result.toString().take(500)}")
+    // Loguj celou odpoved po castech (logcat ma limit ~4000 znaku na radek)
+    val fullRaw = result.toString()
+    Log.i(TAG, "getInteractiveHtml raw length: ${fullRaw.length}")
+    fullRaw.chunked(3000).forEachIndexed { i, chunk ->
+        Log.i(TAG, "getInteractiveHtml raw[$i]: $chunk")
+    }
     return try {
         // Python: result[0][9][0] = HTML content
         val data = result.jsonArray[0].jsonArray

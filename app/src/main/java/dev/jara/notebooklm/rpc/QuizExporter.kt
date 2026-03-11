@@ -35,8 +35,23 @@ object QuizExporter {
         val encoded = match.groupValues[1]
         val decoded = htmlUnescape(encoded)
 
+        Log.i(TAG, "decoded length: ${decoded.length}")
+        // Debug: uloz decoded JSON na disk pro analyzu
+        try {
+            val debugFile = java.io.File("/data/data/dev.jara.notebooklm/cache/quiz_debug.json")
+            debugFile.writeText(decoded, Charsets.UTF_8)
+            Log.i(TAG, "decoded saved to ${debugFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.w(TAG, "failed to save debug: ${e.message}")
+        }
+
+        // NotebookLM obcas generuje malformovany JSON — chybi klic "rationale":
+        // Pattern: "text": "...", \n "neco bez klice", \n "isCorrect": ...
+        // Oprava: vloz chybejici "rationale": pred orphan string
+        val fixed = fixMalformedQuizJson(decoded)
+
         return try {
-            val json = Json.parseToJsonElement(decoded).jsonObject
+            val json = Json.parseToJsonElement(fixed).jsonObject
             val quizArray = json["quiz"]?.jsonArray ?: run {
                 Log.w(TAG, "Klic 'quiz' nenalezen v JSON")
                 return null
@@ -44,13 +59,14 @@ object QuizExporter {
 
             quizArray.mapIndexed { i, el ->
                 val obj = el.jsonObject
-                val question = obj["question"]?.jsonPrimitive?.contentOrNull ?: ""
-                val hint = obj["hint"]?.jsonPrimitive?.contentOrNull ?: ""
+                val question = cleanLatex(obj["question"]?.jsonPrimitive?.contentOrNull ?: "")
+                val hint = cleanLatex(obj["hint"]?.jsonPrimitive?.contentOrNull ?: "")
                 val options = obj["answerOptions"]?.jsonArray?.map { opt ->
                     val optObj = opt.jsonObject
                     AnswerOption(
-                        text = optObj["text"]?.jsonPrimitive?.contentOrNull ?: "",
+                        text = cleanLatex(optObj["text"]?.jsonPrimitive?.contentOrNull ?: ""),
                         isCorrect = optObj["isCorrect"]?.jsonPrimitive?.booleanOrNull ?: false,
+                        rationale = cleanLatex(optObj["rationale"]?.jsonPrimitive?.contentOrNull ?: ""),
                     )
                 } ?: emptyList()
                 val correctIdx = options.indexOfFirst { it.isCorrect }
@@ -88,7 +104,11 @@ object QuizExporter {
                     put("question", q.question)
                     put("options", buildJsonArray { padded.forEach { add(JsonPrimitive(it)) } })
                     put("correctIndex", correctIdx)
-                    put("explanation", q.hint.ifEmpty { q.options.firstOrNull { it.isCorrect }?.text ?: "" })
+                    put("explanation", q.hint.ifEmpty { q.options.firstOrNull { it.isCorrect }?.rationale ?: "" })
+                    put("hint", q.hint)
+                    put("rationales", buildJsonArray {
+                        q.options.take(4).forEach { add(JsonPrimitive(it.rationale)) }
+                    })
                     put("difficultyRank", diffRank)
                 })
             }
@@ -140,13 +160,82 @@ object QuizExporter {
         }
     }
 
-    private fun htmlUnescape(s: String): String = s
-        .replace("&quot;", "\"")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&apos;", "'")
-        .replace("&#39;", "'")
+    /**
+     * Vycisti LaTeX escape sekvence uvnitr $...$ znacek, ale ponecha $...$ jako markery
+     * pro syntax highlighting v UI.
+     * $Church \\, of \\, Satan$ → $Church of Satan$
+     */
+    private fun cleanLatex(s: String): String =
+        s.replace(Regex("""\$([^$]*)\$""")) { match ->
+            val cleaned = match.groupValues[1]
+                .replace("\\\\,", " ")
+                .replace("\\,", " ")
+                .replace("\\\\", "")
+                .replace("\\{", "{")
+                .replace("\\}", "}")
+                .replace("\\[", "[")
+                .replace("\\]", "]")
+                .replace("\\/", "/")
+                .replace("\\\"", "\"")
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+            "\$$cleaned\$"
+        }
+
+    /**
+     * Opravi malformovany JSON z NotebookLM kde obcas chybi klic "rationale":
+     * Napr.: "text": "...",\n "orphan string",\n "isCorrect": false
+     * →      "text": "...",\n "rationale": "orphan string",\n "isCorrect": false
+     */
+    private fun fixMalformedQuizJson(json: String): String {
+        // Hledame: po "text": "..." a carce, string ktery NENI nasledovan dvojteckou
+        // (tj. je to hodnota bez klice — orphan string)
+        return Regex(
+            """("text"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"(?:[^"\\]|\\.)*"\s*,\s*\n\s*)("isCorrect")"""
+        ).replace(json) { match ->
+            // Tenhle pattern nematchne spravne, zkusim jiny pristup
+            match.value
+        }.let { _ ->
+            // Jednoduchy pristup: najdi orphan stringy (string, string, "isCorrect")
+            // v answerOptions bloku a vloz "rationale":
+            val lines = json.lines().toMutableList()
+            for (i in lines.indices) {
+                val trimmed = lines[i].trim()
+                // Orphan string = radek ktery je "neco...", a predchozi radek je "text": "...",
+                // a nasledujici radek je "isCorrect":
+                if (i > 0 && i < lines.size - 1 &&
+                    trimmed.startsWith("\"") && trimmed.endsWith(",") &&
+                    !trimmed.contains(":") &&
+                    lines[i + 1].trim().startsWith("\"isCorrect\"")
+                ) {
+                    val indent = lines[i].takeWhile { it.isWhitespace() }
+                    val value = trimmed.removeSuffix(",")
+                    lines[i] = "$indent\"rationale\": $value,"
+                    Log.i(TAG, "fixMalformedQuizJson: opravena radka $i")
+                }
+            }
+            lines.joinToString("\n")
+        }
+    }
+
+    private fun htmlUnescape(s: String): String {
+        var result = s
+            .replace("&quot;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&apos;", "'")
+            .replace("&#39;", "'")
+        // Numericke entity: &#123; nebo &#x1F;
+        result = Regex("""&#x([0-9a-fA-F]+);""").replace(result) {
+            it.groupValues[1].toIntOrNull(16)?.toChar()?.toString() ?: it.value
+        }
+        result = Regex("""&#(\d+);""").replace(result) {
+            it.groupValues[1].toIntOrNull()?.toChar()?.toString() ?: it.value
+        }
+        // &amp; az nakonec (jinak rozbije &amp;quot; atd.)
+        result = result.replace("&amp;", "&")
+        return result
+    }
 
     private fun slugify(text: String): String {
         val normalized = Normalizer.normalize(text, Normalizer.Form.NFD)
@@ -168,4 +257,5 @@ data class QuizQuestion(
 data class AnswerOption(
     val text: String,
     val isCorrect: Boolean,
+    val rationale: String = "",
 )

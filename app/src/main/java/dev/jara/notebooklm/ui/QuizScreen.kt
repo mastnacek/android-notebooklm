@@ -15,12 +15,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jara.notebooklm.rpc.AnswerOption
 import dev.jara.notebooklm.rpc.QuizQuestion
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import kotlin.random.Random
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -52,6 +60,7 @@ fun QuizScreen(
     var score by rememberSaveable { mutableIntStateOf(0) }
     var selectedIndex by rememberSaveable { mutableIntStateOf(-1) }
     var finished by rememberSaveable { mutableStateOf(false) }
+    var hintRevealed by rememberSaveable { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
     if (finished || currentIndex >= prepared.size) {
@@ -131,7 +140,7 @@ fun QuizScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = q.original.question,
+                    text = highlightMarkers(q.original.question, Term.cyan),
                     color = Term.white,
                     fontFamily = Term.font,
                     fontSize = Term.fontSizeXl,
@@ -140,30 +149,48 @@ fun QuizScreen(
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )
 
-                // Hint — po odpovedi
-                if (answered && q.original.hint.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    val hintShape = RoundedCornerShape(DS.cardRadius)
-                    Text(
-                        text = q.original.hint,
-                        color = Term.yellow,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .clip(hintShape)
-                            .background(Term.yellow.copy(alpha = 0.08f))
-                            .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintShape)
-                            .padding(12.dp),
-                    )
+                // Hint — tlacitko pred odpovedi, automaticky po odpovedi
+                if (q.original.hint.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (hintRevealed || answered) {
+                        val hintShape = RoundedCornerShape(DS.cardRadius)
+                        Text(
+                            text = highlightMarkers("💡 ${q.original.hint}", Term.yellow),
+                            color = Term.yellow,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .clip(hintShape)
+                                .background(Term.yellow.copy(alpha = 0.08f))
+                                .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintShape)
+                                .padding(12.dp),
+                        )
+                    } else {
+                        val hintBtnShape = RoundedCornerShape(DS.buttonRadius)
+                        Text(
+                            text = "💡 Nápověda",
+                            color = Term.yellow,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .clip(hintBtnShape)
+                                .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintBtnShape)
+                                .clickable { hintRevealed = true }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                 }
             }
         }
 
-        // ── Odpovedi — dole (thumb area) ──
+        // ── Odpovedi — dole (thumb area), scrollovatelne po odpovedi kvuli rationale ──
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 12.dp),
+            modifier = Modifier
+                .padding(bottom = 12.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             q.options.take(4).forEachIndexed { i, option ->
                 QuizAnswerButton(
@@ -174,6 +201,7 @@ fun QuizScreen(
                         i == selectedIndex -> AnswerState.WRONG
                         else -> AnswerState.NEUTRAL
                     },
+                    rationale = option.rationale,
                     onClick = {
                         if (!answered) {
                             selectedIndex = i
@@ -210,6 +238,7 @@ fun QuizScreen(
                             } else {
                                 currentIndex++
                                 selectedIndex = -1
+                                hintRevealed = false
                             }
                         }
                         .padding(vertical = 14.dp),
@@ -224,7 +253,12 @@ fun QuizScreen(
 private enum class AnswerState { DEFAULT, CORRECT, WRONG, NEUTRAL }
 
 @Composable
-private fun QuizAnswerButton(text: String, state: AnswerState, onClick: () -> Unit) {
+private fun QuizAnswerButton(
+    text: String,
+    state: AnswerState,
+    rationale: String = "",
+    onClick: () -> Unit,
+) {
     val bgColor by animateColorAsState(
         when (state) {
             AnswerState.DEFAULT -> Term.surface
@@ -262,19 +296,49 @@ private fun QuizAnswerButton(text: String, state: AnswerState, onClick: () -> Un
     }
 
     val shape = RoundedCornerShape(DS.buttonRadius)
-    Text(
-        text = "$icon$text",
-        color = textColor,
-        fontFamily = Term.font,
-        fontSize = Term.fontSizeLg,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(bgColor)
-            .border(DS.borderWidth, borderColor, shape)
-            .clickable(enabled = state == AnswerState.DEFAULT, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-    )
+    // Highlight barva pro $...$ markery — svetlejsi verze hlavni barvy textu
+    val highlightColor = when (state) {
+        AnswerState.DEFAULT -> Term.cyan
+        AnswerState.CORRECT -> Term.green
+        AnswerState.WRONG -> Term.red
+        AnswerState.NEUTRAL -> Term.disabled
+    }
+    Column {
+        Text(
+            text = buildAnnotatedString {
+                append(icon)
+                append(highlightMarkers(text, highlightColor))
+            },
+            color = textColor,
+            fontFamily = Term.font,
+            fontSize = Term.fontSizeLg,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(bgColor)
+                .border(DS.borderWidth, borderColor, shape)
+                .clickable(enabled = state == AnswerState.DEFAULT, onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        )
+        // Rationale — zobraz po odpovedi u vsech variant
+        if (rationale.isNotBlank() && state != AnswerState.DEFAULT) {
+            val rationaleColor = when (state) {
+                AnswerState.CORRECT -> Term.green
+                AnswerState.WRONG -> Term.red
+                else -> Term.textDim
+            }
+            Text(
+                text = highlightMarkers(rationale, rationaleColor.copy(alpha = 0.7f)),
+                color = rationaleColor.copy(alpha = 0.7f),
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                fontStyle = FontStyle.Italic,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+    }
 }
 
 // ── Result Screen ──
@@ -335,6 +399,29 @@ private fun QuizResultScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             DetailPill("↩ Opakovat", Term.cyan) { onRestart() }
             DetailPill("✕ Zpět", Term.textDim) { onBack() }
+        }
+    }
+}
+
+// ── Syntax highlighting pro $...$ markery z NotebookLM ──
+
+/** Parsuje $...$ markery a vraci AnnotatedString se zvyraznenym textem (italic + barva) */
+private fun highlightMarkers(text: String, highlightColor: Color): AnnotatedString {
+    val regex = Regex("""\$([^$]+)\$""")
+    return buildAnnotatedString {
+        var lastIndex = 0
+        for (match in regex.findAll(text)) {
+            // Text pred markerem
+            append(text.substring(lastIndex, match.range.first))
+            // Zvyrazneny text
+            withStyle(SpanStyle(color = highlightColor, fontStyle = FontStyle.Italic)) {
+                append(match.groupValues[1])
+            }
+            lastIndex = match.range.last + 1
+        }
+        // Zbytek textu
+        if (lastIndex < text.length) {
+            append(text.substring(lastIndex))
         }
     }
 }
