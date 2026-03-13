@@ -122,34 +122,37 @@ val LightAppColors = AppColors(
 
 object DoomOne {
     val Bg = Color(0xFF282C34)
+    val BgAlt = Color(0xFF21242B)    // sidebary, panely
     val BgCard = Color(0xFF2C323C)
     val Border = Color(0xFF3E4451)
-    val Fg = Color(0xFFABB2BF)
-    val FgDim = Color(0xFF5C6370)
+    val Fg = Color(0xFFBBC2CF)       // kanonický fg z doom-one-theme.el
+    val FgDim = Color(0xFF5B6268)    // base5 — komentáře, neaktivní
 
-    val Blue = Color(0xFF61AFEF)
-    val Green = Color(0xFF98C379)
-    val Red = Color(0xFFE06C75)
-    val Yellow = Color(0xFFE5C07B)
-    val Purple = Color(0xFFC678DD)
-    val Cyan = Color(0xFF56B6C2)
-    val Orange = Color(0xFFD19A66)
+    val Blue = Color(0xFF51AFEF)     // klíčová slova, primární akcent
+    val Green = Color(0xFF98BE65)    // stringy, success
+    val Red = Color(0xFFFF6C6B)      // chyby — jasnější než Atom
+    val Yellow = Color(0xFFECBE7B)   // typy, warningy
+    val Magenta = Color(0xFFC678DD)  // funkce, builtin — "kouzlo" theme
+    val Cyan = Color(0xFF46D9FF)     // speciální zvýraznění — neonový cyan
+    val Teal = Color(0xFF4DB5BD)     // metody, info
+    val Orange = Color(0xFFDA8548)   // čísla, konstanty
+    val Violet = Color(0xFFA9A1E1)   // titulky, special
 }
 
 val DoomOneDarkColors = AppColors(
     bg = DoomOne.Bg,                 // #282C34
     surface = DoomOne.BgCard,        // #2C323C
     surfaceLight = DoomOne.Border,   // #3E4451
-    green = DoomOne.Green,           // #98C379
-    cyan = DoomOne.Cyan,             // #56B6C2
-    orange = DoomOne.Orange,         // #D19A66
-    red = DoomOne.Red,               // #E06C75
-    purple = DoomOne.Purple,         // #C678DD
-    yellow = DoomOne.Yellow,         // #E5C07B — CTA
-    disabled = DoomOne.FgDim,        // #5C6370
-    text = DoomOne.Fg,               // #ABB2BF
-    textDim = DoomOne.FgDim,         // #5C6370
-    white = Color(0xFFE5E9F0),       // near-white
+    green = DoomOne.Green,           // #98BE65 — success, stringy
+    cyan = DoomOne.Blue,             // #51AFEF — primární akcent (klíčová slova)
+    orange = DoomOne.Orange,         // #DA8548 — čísla, konstanty
+    red = DoomOne.Red,               // #FF6C6B — jasná chyba
+    purple = DoomOne.Magenta,        // #C678DD — "kouzlo" — funkce, builtin
+    yellow = DoomOne.Yellow,         // #ECBE7B — CTA, warningy
+    disabled = DoomOne.FgDim,        // #5B6268
+    text = DoomOne.Fg,               // #BBC2CF — teplejší fg
+    textDim = DoomOne.FgDim,         // #5B6268 — komentáře
+    white = Color(0xFFDFDFDF),       // near-white, čistší
     border = DoomOne.Border,         // #3E4451
 )
 
@@ -193,7 +196,7 @@ fun NotebookLmTheme(
         ThemeMode.DOOM -> darkColorScheme(
             primary = DoomOne.Blue,
             secondary = DoomOne.Green,
-            tertiary = DoomOne.Orange,
+            tertiary = DoomOne.Magenta,
             background = DoomOne.Bg,
             surface = DoomOne.BgCard,
             surfaceVariant = DoomOne.Border,
