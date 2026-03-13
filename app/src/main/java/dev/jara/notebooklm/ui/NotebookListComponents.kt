@@ -217,7 +217,7 @@ internal fun NotebookCard(
                 Icon(
                     imageVector = Icons.Filled.Headphones,
                     contentDescription = "Artefakty",
-                    tint = Term.purple,
+                    tint = Term.cyan,
                     modifier = Modifier
                         .size(28.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -812,7 +812,7 @@ internal fun ArtifactQuickDialog(
                 Icon(
                     imageVector = Icons.Filled.Headphones,
                     contentDescription = null,
-                    tint = Term.purple,
+                    tint = Term.cyan,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))

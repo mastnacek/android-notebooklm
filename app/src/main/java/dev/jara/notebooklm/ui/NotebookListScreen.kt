@@ -622,6 +622,12 @@ fun NotebookListScreen(
                         fontFamily = Term.font,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = androidx.compose.ui.graphics.Shadow(
+                                color = Term.green.copy(alpha = 0.6f),
+                                blurRadius = 12f,
+                            ),
+                        ),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

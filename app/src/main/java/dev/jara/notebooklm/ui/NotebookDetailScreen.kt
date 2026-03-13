@@ -113,6 +113,12 @@ fun NotebookDetailScreen(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     softWrap = false,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Term.white.copy(alpha = 0.5f),
+                            blurRadius = 10f,
+                        ),
+                    ),
                     modifier = Modifier
                         .horizontalScroll(scrollState)
                         .clickable { marqueeTriger++ },
