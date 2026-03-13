@@ -31,16 +31,24 @@ internal fun DetailPill(
 ) {
     val shape = RoundedCornerShape(DS.buttonRadius)
     val isSingleChar = text.codePointCount(0, text.length) == 1
+    val isSubdued = color == Term.textDim || color == Term.disabled
+    // Plné pozadí pro výrazné barvy, border-only pro subdued (Zavřít, Zrušit)
+    val bgMod = if (isSubdued) {
+        Modifier.border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+    } else {
+        Modifier.background(color).border(DS.borderWidth, color, shape)
+    }
+    val textColor = if (isSubdued) color else Term.bg
     Text(
         text = text,
-        color = color,
+        color = textColor,
         fontFamily = Term.font,
         fontSize = Term.fontSize,
         fontWeight = FontWeight.SemiBold,
         textAlign = if (isSingleChar) androidx.compose.ui.text.style.TextAlign.Center else null,
         modifier = modifier
             .clip(shape)
-            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+            .then(bgMod)
             .clickable(onClick = onClick)
             .then(
                 if (isSingleChar) Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 34.dp)
@@ -83,14 +91,20 @@ internal fun IconPill(icon: ImageVector, color: Color, contentDesc: String? = nu
 @Composable
 internal fun IconDetailPill(icon: ImageVector, color: Color, contentDesc: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.buttonRadius)
+    val isSubdued = color == Term.textDim || color == Term.disabled
+    val bgMod = if (isSubdued) {
+        Modifier.border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+    } else {
+        Modifier.background(color).border(DS.borderWidth, color, shape)
+    }
     Icon(
         imageVector = icon,
         contentDescription = contentDesc,
-        tint = color,
+        tint = if (isSubdued) color else Term.bg,
         modifier = Modifier
             .size(34.dp)
             .clip(shape)
-            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+            .then(bgMod)
             .clickable(onClick = onClick)
             .padding(7.dp),
     )

@@ -46,15 +46,22 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun ActionPill(text: String, color: Color, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.buttonRadius)
+    val isSubdued = color == Term.textDim || color == Term.disabled
+    val bgMod = if (isSubdued) {
+        Modifier.border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+    } else {
+        Modifier.background(color).border(DS.borderWidth, color, shape)
+    }
+    val textColor = if (isSubdued) color else Term.bg
     Text(
         text = text,
-        color = color,
+        color = textColor,
         fontFamily = Term.font,
         fontSize = Term.fontSizeLg,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
             .clip(shape)
-            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+            .then(bgMod)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
