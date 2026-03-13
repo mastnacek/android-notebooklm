@@ -5,6 +5,9 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import dev.jara.notebooklm.auth.AuthManager
 import dev.jara.notebooklm.rpc.*
 import dev.jara.notebooklm.search.EmbeddingDb
@@ -644,16 +647,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _quickPlayerCookies = MutableStateFlow("")
     val quickPlayerCookies: StateFlow<String> get() = _quickPlayerCookies
 
+    // ExoPlayer žije ve ViewModelu — přežije zavření dialogu
+    private var _quickExoPlayer: ExoPlayer? = null
+    val quickExoPlayer: ExoPlayer? get() = _quickExoPlayer
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     fun playAudioFromList(url: String, title: String) {
-        val cookies = authManager.loadTokens()?.cookies ?: ""
+        // Uvolni předchozí player
+        _quickExoPlayer?.release()
+
+        val context = getApplication<Application>()
+        val dataSourceFactory = CookieAwareDataSource.Factory()
+        val mimeType = when {
+            url.contains("=m18") -> "audio/mp4"
+            url.contains("=m140") -> "audio/webm"
+            else -> "audio/mpeg"
+        }
+        val mediaItem = MediaItem.Builder().setUri(url).setMimeType(mimeType).build()
+        val player = ExoPlayer.Builder(context)
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
+            .apply {
+                setMediaItem(mediaItem)
+                prepare()
+                playWhenReady = true
+            }
+        _quickExoPlayer = player
         _quickPlayerUrl.value = url
         _quickPlayerTitle.value = title
-        _quickPlayerCookies.value = cookies
     }
 
     fun stopQuickPlayer() {
+        _quickExoPlayer?.release()
+        _quickExoPlayer = null
         _quickPlayerUrl.value = null
     }
+
+    // onCleared je na konci souboru
 
     // ── Source Discovery ──
 
@@ -795,6 +825,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        _quickExoPlayer?.release()
         httpClient.close()
         embeddingDb.close()
         super.onCleared()

@@ -4,6 +4,8 @@ package dev.jara.notebooklm.ui
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -784,7 +786,7 @@ internal fun ArtifactQuickDialog(
     onStopPlayer: () -> Unit = {},
     playerUrl: String? = null,
     playerTitle: String = "",
-    playerCookies: String = "",
+    player: androidx.media3.exoplayer.ExoPlayer? = null,
     onDismiss: () -> Unit,
 ) {
     androidx.compose.ui.window.Dialog(
@@ -818,14 +820,13 @@ internal fun ArtifactQuickDialog(
                 )
             }
 
-            // Inline player
-            if (playerUrl != null) {
+            // Inline player (ExoPlayer z ViewModelu — přežije zavření dialogu)
+            if (playerUrl != null && player != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                AudioPlayerBar(
-                    url = playerUrl,
+                QuickPlayerInline(
+                    player = player,
                     title = playerTitle,
-                    cookies = playerCookies,
-                    onClose = onStopPlayer,
+                    onStop = onStopPlayer,
                 )
             }
 
@@ -926,4 +927,172 @@ internal fun ArtifactQuickDialog(
             }
         }
     }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// QUICK PLAYER INLINE — UI nad ExoPlayer z ViewModelu
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+internal fun QuickPlayerInline(
+    player: androidx.media3.exoplayer.ExoPlayer,
+    title: String,
+    onStop: () -> Unit,
+) {
+    var isPlaying by remember { mutableStateOf(player.isPlaying) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var positionText by remember { mutableStateOf("0:00") }
+    var durationText by remember { mutableStateOf("--:--") }
+    var buffering by remember { mutableStateOf(player.playbackState == androidx.media3.common.Player.STATE_BUFFERING) }
+
+    DisposableEffect(player) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                buffering = state == androidx.media3.common.Player.STATE_BUFFERING
+                if (state == androidx.media3.common.Player.STATE_ENDED) isPlaying = false
+            }
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            kotlinx.coroutines.delay(500)
+            val dur = player.duration
+            val pos = player.currentPosition
+            if (dur > 0) {
+                progress = pos.toFloat() / dur
+                positionText = formatQuickMs(pos)
+                durationText = formatQuickMs(dur)
+            }
+        }
+    }
+
+    val shape = RoundedCornerShape(DS.cardRadius)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Term.green.copy(alpha = 0.08f))
+            .border(1.5.dp, Term.green.copy(alpha = 0.5f), shape)
+            .padding(12.dp),
+    ) {
+        // Titulek + close
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Headphones,
+                contentDescription = null,
+                tint = Term.green,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                color = Term.white,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Zastavit",
+                tint = Term.textDim,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onStop() }
+                    .padding(2.dp),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Seekbar
+        Slider(
+            value = progress,
+            onValueChange = { v ->
+                progress = v
+                val dur = player.duration
+                if (dur > 0) player.seekTo((v * dur).toLong())
+            },
+            modifier = Modifier.fillMaxWidth().height(24.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = Term.green,
+                activeTrackColor = Term.green,
+                inactiveTrackColor = Term.border,
+            ),
+        )
+
+        // Časy + ovládání
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(positionText, color = Term.textDim, fontFamily = Term.font, fontSize = 11.sp)
+            Spacer(modifier = Modifier.weight(1f))
+
+            // -15s
+            Icon(
+                imageVector = Icons.Filled.Replay,
+                contentDescription = "−15s",
+                tint = Term.textDim,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .clickable { player.seekTo((player.currentPosition - 15000).coerceAtLeast(0)) }
+                    .padding(2.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Play/Pause
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Term.green)
+                    .clickable { if (isPlaying) player.pause() else player.play() },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (buffering) {
+                    CircularProgressIndicator(color = Term.bg, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pauza" else "Přehrát",
+                        tint = Term.bg,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+            // +15s
+            Icon(
+                imageVector = Icons.Filled.Forward30,
+                contentDescription = "+15s",
+                tint = Term.textDim,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .clickable {
+                        val dur = player.duration
+                        player.seekTo((player.currentPosition + 15000).coerceAtMost(if (dur > 0) dur else Long.MAX_VALUE))
+                    }
+                    .padding(2.dp),
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+            Text(durationText, color = Term.textDim, fontFamily = Term.font, fontSize = 11.sp)
+        }
+    }
+}
+
+private fun formatQuickMs(ms: Long): String {
+    val totalSec = ms / 1000
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return "$min:${sec.toString().padStart(2, '0')}"
 }

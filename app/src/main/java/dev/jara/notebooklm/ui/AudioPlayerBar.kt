@@ -263,7 +263,7 @@ fun AudioPlayerBar(
  * dostane sve cookies (jako Rust cookies_for_url).
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-private class CookieAwareDataSource : BaseDataSource(/* isNetwork = */ true) {
+internal class CookieAwareDataSource : BaseDataSource(/* isNetwork = */ true) {
 
     companion object {
         private const val TAG = "CookieAwareDS"

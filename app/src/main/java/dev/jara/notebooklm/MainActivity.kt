@@ -80,7 +80,6 @@ class MainActivity : ComponentActivity() {
             val quickArtifactsNotebook by viewModel.quickArtifactsNotebook.collectAsStateWithLifecycle()
             val quickPlayerUrl by viewModel.quickPlayerUrl.collectAsStateWithLifecycle()
             val quickPlayerTitle by viewModel.quickPlayerTitle.collectAsStateWithLifecycle()
-            val quickPlayerCookies by viewModel.quickPlayerCookies.collectAsStateWithLifecycle()
 
             val folderPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.OpenDocumentTree()
@@ -121,7 +120,7 @@ class MainActivity : ComponentActivity() {
                     onStopPlayer = { viewModel.stopQuickPlayer() },
                     playerUrl = quickPlayerUrl,
                     playerTitle = quickPlayerTitle,
-                    playerCookies = quickPlayerCookies,
+                    player = viewModel.quickExoPlayer,
                     onDismiss = { viewModel.dismissQuickArtifacts() },
                 )
             }
