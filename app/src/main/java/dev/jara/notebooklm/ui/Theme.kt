@@ -152,7 +152,7 @@ val DoomOneDarkColors = AppColors(
     disabled = DoomOne.FgDim,        // #5B6268
     text = DoomOne.Fg,               // #BBC2CF — teplejší fg
     textDim = DoomOne.FgDim,         // #5B6268 — komentáře
-    white = Color(0xFFDFDFDF),       // near-white, čistší
+    white = DoomOne.Magenta,         // #C678DD — titulky v doom magenta!
     border = DoomOne.Border,         // #3E4451
 )
 
