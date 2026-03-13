@@ -217,7 +217,7 @@ internal fun NotebookCard(
                 Icon(
                     imageVector = Icons.Filled.Headphones,
                     contentDescription = "Artefakty",
-                    tint = Term.textDim,
+                    tint = Term.purple,
                     modifier = Modifier
                         .size(28.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -228,7 +228,7 @@ internal fun NotebookCard(
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                     contentDescription = if (isFavorite) "Odebrat z oblíbených" else "Přidat do oblíbených",
-                    tint = if (isFavorite) Term.orange else Term.textDim,
+                    tint = if (isFavorite) Term.orange else Term.text,
                     modifier = Modifier
                         .size(28.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -261,7 +261,7 @@ internal fun NotebookCard(
                 Icon(
                     imageVector = Icons.Filled.People,
                     contentDescription = "Sdílený",
-                    tint = Term.textDim,
+                    tint = Term.cyan,
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -530,12 +530,12 @@ private fun SourceTypesSummaryRow(types: Map<dev.jara.notebooklm.rpc.SourceType,
                 Icon(
                     imageVector = type.icon,
                     contentDescription = type.name,
-                    tint = Term.textDim,
+                    tint = Term.text,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = "$count",
-                    color = Term.textDim,
+                    color = Term.text,
                     fontFamily = Term.font,
                     fontSize = Term.fontSize,
                 )

@@ -8,6 +8,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -602,10 +604,12 @@ internal fun DiscoverSourcesPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(max = 400.dp)
             .clip(shape)
             .background(Term.cyan.copy(alpha = 0.06f))
             .border(DS.borderWidth, Term.cyan.copy(alpha = DS.borderAlpha), shape)
-            .padding(14.dp),
+            .padding(14.dp)
+            .verticalScroll(rememberScrollState()),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
