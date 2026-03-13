@@ -175,24 +175,12 @@ fun SettingsDialog(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SettingsPill("Zrušit", Term.textDim) { onDismiss() }
+                DetailPill("Zrušit", Term.textDim) { onDismiss() }
                 Spacer(modifier = Modifier.width(8.dp))
-                val shape = RoundedCornerShape(DS.buttonRadius)
-                Text(
-                    text = "Uložit",
-                    color = Term.bg,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSizeLg,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(shape)
-                        .background(Term.green)
-                        .clickable {
-                            onSave(apiKey.trim(), classifyModel.trim())
-                            onDismiss()
-                        }
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                )
+                DetailPill("Uložit", Term.green) {
+                    onSave(apiKey.trim(), classifyModel.trim())
+                    onDismiss()
+                }
             }
         }
     }
@@ -245,25 +233,5 @@ private fun SettingsInput(
             }
         },
         modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-@Composable
-private fun SettingsPill(
-    text: String,
-    color: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = text,
-        color = color,
-        fontFamily = Term.font,
-        fontSize = Term.fontSizeLg,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(DS.buttonRadius))
-            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), RoundedCornerShape(DS.buttonRadius))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
     )
 }

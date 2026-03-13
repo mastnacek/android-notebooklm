@@ -129,16 +129,7 @@ internal fun FacetFilterPanel(
                                 .padding(horizontal = 7.dp, vertical = 2.dp),
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Vymazat",
-                            color = Term.red,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(DS.chipRadius))
-                                .clickable { onFilterChange(FacetFilter()) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
+                        DetailPill("Vymazat", Term.red) { onFilterChange(FacetFilter()) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))

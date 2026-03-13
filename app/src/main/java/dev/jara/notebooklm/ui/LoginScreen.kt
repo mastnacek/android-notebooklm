@@ -3,7 +3,9 @@ package dev.jara.notebooklm.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +47,9 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(48.dp))
 
         // Login button
+        val shape = RoundedCornerShape(DS.buttonRadius)
         Text(
-            text = "[ PRIHLASIT SE ]",
+            text = "Přihlásit se",
             color = Term.bg,
             fontFamily = Term.font,
             fontSize = Term.fontSizeLg,
@@ -54,8 +57,9 @@ fun LoginScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onLogin() }
+                .clip(shape)
                 .background(Term.green)
+                .clickable { onLogin() }
                 .padding(vertical = 14.dp),
         )
 

@@ -248,8 +248,8 @@ fun QuizScreen(
                 val isLast = currentIndex >= prepared.size - 1
                 val nextShape = RoundedCornerShape(DS.buttonRadius)
                 Text(
-                    text = if (isLast) "Zobrazit výsledky" else "Další otázka →",
-                    color = Term.cyan,
+                    text = if (isLast) "Zobrazit výsledky" else "Další otázka",
+                    color = Term.bg,
                     fontFamily = Term.font,
                     fontSize = Term.fontSizeLg,
                     fontWeight = FontWeight.Bold,
@@ -257,7 +257,7 @@ fun QuizScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(nextShape)
-                        .background(Term.cyan.copy(alpha = DS.selectionAlpha))
+                        .background(Term.cyan)
                         .clickable {
                             if (isLast) {
                                 finished = true
