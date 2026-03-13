@@ -90,6 +90,7 @@ fun SettingsDialog(
                     ThemeOption(ThemeMode.SYSTEM, Icons.Filled.SettingsBrightness),
                     ThemeOption(ThemeMode.DARK, Icons.Filled.DarkMode),
                     ThemeOption(ThemeMode.LIGHT, Icons.Filled.LightMode),
+                    ThemeOption(ThemeMode.DOOM, Icons.Filled.Terminal),
                 )
                 for (opt in options) {
                     val selected = opt.mode == currentThemeMode

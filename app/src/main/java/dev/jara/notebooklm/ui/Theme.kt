@@ -116,6 +116,43 @@ val LightAppColors = AppColors(
     border = Gruvbox.Dark4,          // #7C6F64 — ostré terminálové bordery, jasně viditelné
 )
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DOOM ONE DARK PALETA (Atom One Dark inspired)
+// ══════════════════════════════════════════════════════════════════════════════
+
+object DoomOne {
+    val Bg = Color(0xFF282C34)
+    val BgCard = Color(0xFF2C323C)
+    val Border = Color(0xFF3E4451)
+    val Fg = Color(0xFFABB2BF)
+    val FgDim = Color(0xFF5C6370)
+
+    val Blue = Color(0xFF61AFEF)
+    val Green = Color(0xFF98C379)
+    val Red = Color(0xFFE06C75)
+    val Yellow = Color(0xFFE5C07B)
+    val Purple = Color(0xFFC678DD)
+    val Cyan = Color(0xFF56B6C2)
+    val Orange = Color(0xFFD19A66)
+}
+
+val DoomOneDarkColors = AppColors(
+    bg = DoomOne.Bg,                 // #282C34
+    surface = DoomOne.BgCard,        // #2C323C
+    surfaceLight = DoomOne.Border,   // #3E4451
+    green = DoomOne.Green,           // #98C379
+    cyan = DoomOne.Cyan,             // #56B6C2
+    orange = DoomOne.Orange,         // #D19A66
+    red = DoomOne.Red,               // #E06C75
+    purple = DoomOne.Purple,         // #C678DD
+    yellow = DoomOne.Yellow,         // #E5C07B — CTA
+    disabled = DoomOne.FgDim,        // #5C6370
+    text = DoomOne.Fg,               // #ABB2BF
+    textDim = DoomOne.FgDim,         // #5C6370
+    white = Color(0xFFE5E9F0),       // near-white
+    border = DoomOne.Border,         // #3E4451
+)
+
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -125,7 +162,8 @@ val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
 enum class ThemeMode(val label: String) {
     SYSTEM("Systém"),
     DARK("Tmavý"),
-    LIGHT("Světlý");
+    LIGHT("Světlý"),
+    DOOM("DoD");
 
     fun next(): ThemeMode = entries[(ordinal + 1) % entries.size]
 }
@@ -141,29 +179,33 @@ fun NotebookLmTheme(
 ) {
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.DARK -> true
+        ThemeMode.DARK, ThemeMode.DOOM -> true
         ThemeMode.LIGHT -> false
     }
-    val appColors = if (darkTheme) DarkAppColors else LightAppColors
+    val appColors = when (themeMode) {
+        ThemeMode.DOOM -> DoomOneDarkColors
+        ThemeMode.LIGHT -> LightAppColors
+        ThemeMode.DARK -> DarkAppColors
+        ThemeMode.SYSTEM -> if (darkTheme) DarkAppColors else LightAppColors
+    }
 
-    val colorScheme = if (darkTheme) {
-        darkColorScheme(
-            primary = Gruvbox.BrightYellow,
-            secondary = Gruvbox.BrightGreen,
-            tertiary = Gruvbox.BrightOrange,
-            background = Gruvbox.Dark0Hard,
-            surface = Gruvbox.Dark0,
-            surfaceVariant = Gruvbox.Dark1,
-            onPrimary = Gruvbox.Dark0,
-            onSecondary = Gruvbox.Dark0,
-            onBackground = Gruvbox.Light1,
-            onSurface = Gruvbox.Light1,
-            onSurfaceVariant = Gruvbox.Light4,
-            error = Gruvbox.BrightRed,
-            outline = Gruvbox.Dark4,
+    val colorScheme = when (themeMode) {
+        ThemeMode.DOOM -> darkColorScheme(
+            primary = DoomOne.Blue,
+            secondary = DoomOne.Green,
+            tertiary = DoomOne.Orange,
+            background = DoomOne.Bg,
+            surface = DoomOne.BgCard,
+            surfaceVariant = DoomOne.Border,
+            onPrimary = DoomOne.Bg,
+            onSecondary = DoomOne.Bg,
+            onBackground = DoomOne.Fg,
+            onSurface = DoomOne.Fg,
+            onSurfaceVariant = DoomOne.FgDim,
+            error = DoomOne.Red,
+            outline = DoomOne.Border,
         )
-    } else {
-        lightColorScheme(
+        ThemeMode.LIGHT -> lightColorScheme(
             primary = Gruvbox.FadedBlue,
             secondary = Gruvbox.FadedGreen,
             tertiary = Gruvbox.FadedOrange,
@@ -178,6 +220,21 @@ fun NotebookLmTheme(
             error = Gruvbox.FadedRed,
             outline = Gruvbox.Light4,
         )
+        else -> darkColorScheme(
+            primary = Gruvbox.BrightYellow,
+            secondary = Gruvbox.BrightGreen,
+            tertiary = Gruvbox.BrightOrange,
+            background = Gruvbox.Dark0Hard,
+            surface = Gruvbox.Dark0,
+            surfaceVariant = Gruvbox.Dark1,
+            onPrimary = Gruvbox.Dark0,
+            onSecondary = Gruvbox.Dark0,
+            onBackground = Gruvbox.Light1,
+            onSurface = Gruvbox.Light1,
+            onSurfaceVariant = Gruvbox.Light4,
+            error = Gruvbox.BrightRed,
+            outline = Gruvbox.Dark4,
+        )
     }
 
     // Nastavení barvy ikon a pozadí systémových barů podle motivu
@@ -190,9 +247,17 @@ fun NotebookLmTheme(
             insetsController.isAppearanceLightNavigationBars = !darkTheme
             // Neprůhledný status bar — app nekrvácí do systémové oblasti
             @Suppress("DEPRECATION")
-            window.statusBarColor = if (darkTheme) 0xFF1D2021.toInt() else 0xFFF9F5D7.toInt()
+            window.statusBarColor = when (themeMode) {
+                ThemeMode.DOOM -> 0xFF282C34.toInt()
+                ThemeMode.LIGHT -> 0xFFF9F5D7.toInt()
+                else -> if (darkTheme) 0xFF1D2021.toInt() else 0xFFF9F5D7.toInt()
+            }
             @Suppress("DEPRECATION")
-            window.navigationBarColor = if (darkTheme) 0xFF282828.toInt() else 0xFFEBDBB2.toInt()
+            window.navigationBarColor = when (themeMode) {
+                ThemeMode.DOOM -> 0xFF2C323C.toInt()
+                ThemeMode.LIGHT -> 0xFFEBDBB2.toInt()
+                else -> if (darkTheme) 0xFF282828.toInt() else 0xFFEBDBB2.toInt()
+            }
         }
     }
 
