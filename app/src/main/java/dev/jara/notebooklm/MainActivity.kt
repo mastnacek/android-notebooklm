@@ -75,6 +75,12 @@ class MainActivity : ComponentActivity() {
             val sourceGroupsState by viewModel.sourceGroups.collectAsStateWithLifecycle()
             val accountInfoState by viewModel.accountInfo.collectAsStateWithLifecycle()
             val downloadPath by remember { derivedStateOf { viewModel.getDownloadPath() } }
+            val quickArtifacts by viewModel.quickArtifacts.collectAsStateWithLifecycle()
+            val quickArtifactsLoading by viewModel.quickArtifactsLoading.collectAsStateWithLifecycle()
+            val quickArtifactsNotebook by viewModel.quickArtifactsNotebook.collectAsStateWithLifecycle()
+            val quickPlayerUrl by viewModel.quickPlayerUrl.collectAsStateWithLifecycle()
+            val quickPlayerTitle by viewModel.quickPlayerTitle.collectAsStateWithLifecycle()
+            val quickPlayerCookies by viewModel.quickPlayerCookies.collectAsStateWithLifecycle()
 
             val folderPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.OpenDocumentTree()
@@ -102,6 +108,21 @@ class MainActivity : ComponentActivity() {
                     onPickFolder = { folderPicker.launch(null) },
                     onThemeChange = { viewModel.setThemeMode(it) },
                     onDismiss = { showSettings = false },
+                )
+            }
+
+            // Quick artifacts dialog
+            if (quickArtifactsNotebook != null) {
+                ArtifactQuickDialog(
+                    notebookTitle = quickArtifactsNotebook!!.title,
+                    artifacts = quickArtifacts ?: emptyList(),
+                    loading = quickArtifactsLoading,
+                    onPlay = { url, title -> viewModel.playAudioFromList(url, title) },
+                    onStopPlayer = { viewModel.stopQuickPlayer() },
+                    playerUrl = quickPlayerUrl,
+                    playerTitle = quickPlayerTitle,
+                    playerCookies = quickPlayerCookies,
+                    onDismiss = { viewModel.dismissQuickArtifacts() },
                 )
             }
 
@@ -182,6 +203,10 @@ class MainActivity : ComponentActivity() {
                         sourceGroups = sourceGroupsState,
                         onDedupSelected = { ids -> viewModel.startDeduplication(ids) },
                         accountInfo = accountInfoState,
+                        onArtifactsClick = { viewModel.loadQuickArtifacts(it) },
+                        miniPlayerTitle = quickPlayerUrl?.let { quickPlayerTitle },
+                        onMiniPlayerClick = { viewModel.reopenQuickArtifacts() },
+                        onMiniPlayerStop = { viewModel.stopAndDismissQuickPlayer() },
                     )
 
                     is Screen.NotebookDetail -> NotebookDetailScreen(
@@ -205,6 +230,11 @@ class MainActivity : ComponentActivity() {
                         onExportQuiz = { id, title -> viewModel.exportQuizForBrainGate(this@MainActivity, id, title) },
                         onDeleteArtifact = { viewModel.deleteArtifact(it) },
                         onDeleteNote = { viewModel.deleteNote(it) },
+                        discovery = viewModel.discovery.collectAsState().value,
+                        onDiscoverSources = { viewModel.discoverSources(it) },
+                        onToggleDiscoverySource = { viewModel.toggleDiscoverySource(it) },
+                        onImportDiscovered = { viewModel.importDiscoveredSources() },
+                        onDismissDiscovery = { viewModel.dismissDiscovery() },
                     )
 
                     is Screen.Quiz -> QuizScreen(

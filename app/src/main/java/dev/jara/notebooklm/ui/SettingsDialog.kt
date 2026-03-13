@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,19 +85,21 @@ fun SettingsDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                data class ThemeOption(val mode: ThemeMode, val icon: String)
+                data class ThemeOption(val mode: ThemeMode, val icon: androidx.compose.ui.graphics.vector.ImageVector)
                 val options = listOf(
-                    ThemeOption(ThemeMode.SYSTEM, "📱"),
-                    ThemeOption(ThemeMode.DARK, "🌙"),
-                    ThemeOption(ThemeMode.LIGHT, "☀️"),
+                    ThemeOption(ThemeMode.SYSTEM, Icons.Filled.SettingsBrightness),
+                    ThemeOption(ThemeMode.DARK, Icons.Filled.DarkMode),
+                    ThemeOption(ThemeMode.LIGHT, Icons.Filled.LightMode),
                 )
                 for (opt in options) {
                     val selected = opt.mode == currentThemeMode
                     val shape = RoundedCornerShape(DS.buttonRadius)
-                    Text(
-                        text = opt.icon,
-                        fontSize = 22.sp,
+                    Icon(
+                        imageVector = opt.icon,
+                        contentDescription = opt.mode.name,
+                        tint = if (selected) Term.green else Term.textDim,
                         modifier = Modifier
+                            .size(32.dp)
                             .clip(shape)
                             .then(
                                 if (selected) Modifier
@@ -103,7 +108,7 @@ fun SettingsDialog(
                                 else Modifier.background(Term.bg)
                             )
                             .clickable { onThemeChange(opt.mode) }
-                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                            .padding(6.dp),
                     )
                 }
             }
@@ -159,7 +164,7 @@ fun SettingsDialog(
                     maxLines = 2,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                SettingsPill("📂", Term.orange) { onPickFolder() }
+                IconDetailPill(Icons.Filled.FolderOpen, Term.orange, "Vybrat složku") { onPickFolder() }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

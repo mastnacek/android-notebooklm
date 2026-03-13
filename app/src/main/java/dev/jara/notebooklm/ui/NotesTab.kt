@@ -13,7 +13,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +45,12 @@ internal fun NotesTab(
     if (detail.notes.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "\uD83D\uDCDD", fontSize = 48.sp)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.StickyNote2,
+                    contentDescription = null,
+                    tint = Term.orange,
+                    modifier = Modifier.size(48.dp),
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Zatím žádné poznámky",
@@ -149,7 +157,12 @@ internal fun SwipeToDismissNoteCard(
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Smazat",
+                    tint = Term.white,
+                    modifier = Modifier.size(22.dp).scale(scale),
+                )
             }
         },
         enableDismissFromStartToEnd = false,
@@ -180,12 +193,13 @@ internal fun NoteCard(note: Note) {
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (expanded) "▾" else "▸",
-                color = Term.textDim,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(end = 8.dp),
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
+                contentDescription = if (expanded) "Sbalit" else "Rozbalit",
+                tint = Term.textDim,
+                modifier = Modifier.size(18.dp).padding(end = 2.dp),
             )
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = displayTitle,
                 color = Term.white,
@@ -195,11 +209,11 @@ internal fun NoteCard(note: Note) {
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
-            MicroAction("📋", Term.textDim) {
+            IconMicroAction(Icons.Outlined.ContentCopy, Term.textDim, "Kopírovat") {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("note", note.content))
             }
-            IconMicroAction(Icons.Default.Share, Term.textDim) {
+            IconMicroAction(Icons.Default.Share, Term.textDim, "Sdílet") {
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     putExtra(Intent.EXTRA_TEXT, note.content)
                     type = "text/plain"

@@ -16,7 +16,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -272,14 +275,20 @@ internal fun SummaryCard(summary: String) {
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (expanded) "▾" else "▸",
-                color = Term.textDim,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(end = 8.dp),
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
+                contentDescription = if (expanded) "Sbalit" else "Rozbalit",
+                tint = Term.textDim,
+                modifier = Modifier.size(18.dp).padding(end = 4.dp),
+            )
+            Icon(
+                imageVector = Icons.Filled.Summarize,
+                contentDescription = null,
+                tint = Term.cyan,
+                modifier = Modifier.size(16.dp).padding(end = 4.dp),
             )
             Text(
-                text = "📋 Souhrn",
+                text = "Souhrn",
                 color = Term.cyan,
                 fontFamily = Term.font,
                 fontSize = Term.fontSizeLg,
@@ -325,18 +334,26 @@ internal fun ChatBubble(
 
             if (!isUser) {
                 var saved by remember { mutableStateOf(false) }
-                MicroAction(if (saved) "✓" else "📝", if (saved) Term.green else Term.textDim) {
+                IconMicroAction(
+                    if (saved) Icons.Filled.Check else Icons.AutoMirrored.Outlined.NoteAdd,
+                    if (saved) Term.green else Term.textDim,
+                    "Uložit jako poznámku",
+                ) {
                     if (!saved) { onSaveAsNote(msg.text); saved = true }
                 }
             }
 
             var copied by remember { mutableStateOf(false) }
-            MicroAction(if (copied) "✓" else "📋", if (copied) Term.green else Term.textDim) {
+            IconMicroAction(
+                if (copied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
+                if (copied) Term.green else Term.textDim,
+                "Kopírovat",
+            ) {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
                 copied = true
             }
-            IconMicroAction(Icons.Default.Share, Term.textDim) {
+            IconMicroAction(Icons.Default.Share, Term.textDim, "Sdílet") {
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     putExtra(Intent.EXTRA_TEXT, msg.text)
                     type = "text/plain"

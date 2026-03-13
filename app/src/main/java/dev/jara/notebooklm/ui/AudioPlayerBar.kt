@@ -5,16 +5,24 @@ import android.net.Uri
 import android.util.Log
 import android.webkit.CookieManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.datasource.BaseDataSource
@@ -41,7 +49,6 @@ fun AudioPlayerBar(
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
-    val player = remember(url) { createPlayer(context, url) }
     var isPlaying by remember { mutableStateOf(true) }
     var progress by remember { mutableFloatStateOf(0f) }
     var positionText by remember { mutableStateOf("0:00") }
@@ -49,7 +56,24 @@ fun AudioPlayerBar(
     var buffering by remember { mutableStateOf(true) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    DisposableEffect(player) {
+    // Player s explicitním lifecycle — starý player se uvolní při změně URL
+    var currentPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
+    DisposableEffect(url) {
+        // Uvolni predchozi player
+        currentPlayer?.release()
+
+        // Reset state
+        isPlaying = true
+        progress = 0f
+        positionText = "0:00"
+        durationText = "--:--"
+        buffering = true
+        errorMsg = null
+
+        val player = createPlayer(context, url)
+        currentPlayer = player
+
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
@@ -68,8 +92,11 @@ fun AudioPlayerBar(
         onDispose {
             player.removeListener(listener)
             player.release()
+            currentPlayer = null
         }
     }
+
+    val player = currentPlayer ?: return
 
     LaunchedEffect(player) {
         while (true) {
@@ -84,64 +111,149 @@ fun AudioPlayerBar(
         }
     }
 
+    val shape = RoundedCornerShape(DS.cardRadius)
+    val playerBg = Term.green.copy(alpha = 0.08f)
+    val playerBorder = Term.green.copy(alpha = 0.5f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Term.surfaceLight)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(shape)
+            .background(playerBg)
+            .border(1.5.dp, playerBorder, shape)
+            .padding(12.dp),
     ) {
+        // ── Titulek + close ──
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (errorMsg != null) "[err]"
-                       else if (buffering) "[...]"
-                       else if (isPlaying) "[pause]"
-                       else "[play]",
-                color = if (errorMsg != null) Term.red else Term.green,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clickable {
-                        if (errorMsg == null) {
-                            if (isPlaying) player.pause() else player.play()
-                        }
-                    }
-                    .padding(end = 8.dp),
+            Icon(
+                imageVector = Icons.Filled.Headphones,
+                contentDescription = null,
+                tint = Term.green,
+                modifier = Modifier.size(18.dp),
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = errorMsg ?: title,
                 color = if (errorMsg != null) Term.red else Term.white,
                 fontFamily = Term.font,
                 fontSize = Term.fontSize,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            if (errorMsg == null) {
-                Text(
-                    text = "$positionText / $durationText",
-                    color = Term.textDim,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-            }
+            IconMicroAction(Icons.Filled.Close, Term.textDim, "Zavřít") { onClose() }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ── Seekbar (Slider) ──
+        Slider(
+            value = progress,
+            onValueChange = { newProgress ->
+                progress = newProgress
+                val dur = player.duration
+                if (dur > 0) {
+                    player.seekTo((newProgress * dur).toLong())
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(24.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = Term.green,
+                activeTrackColor = Term.green,
+                inactiveTrackColor = Term.border,
+            ),
+        )
+
+        // ── Časy ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text(
-                text = "[x]",
+                text = positionText,
                 color = Term.textDim,
                 fontFamily = Term.font,
-                fontSize = Term.fontSize,
-                modifier = Modifier.clickable { onClose() },
+                fontSize = 11.sp,
+            )
+            Text(
+                text = durationText,
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 11.sp,
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp),
-            color = Term.green,
-            trackColor = Term.border,
-        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // ── Ovládací tlačítka ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // -15s
+            IconButton(
+                onClick = { player.seekTo((player.currentPosition - 15000).coerceAtLeast(0)) },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Replay,
+                    contentDescription = "−15s",
+                    tint = Term.textDim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Play/Pause — hlavní tlačítko
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Term.green)
+                    .clickable {
+                        if (errorMsg == null) {
+                            if (isPlaying) player.pause() else player.play()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (buffering) {
+                    CircularProgressIndicator(
+                        color = Term.bg,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pauza" else "Přehrát",
+                        tint = Term.bg,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // +15s
+            IconButton(
+                onClick = {
+                    val dur = player.duration
+                    player.seekTo((player.currentPosition + 15000).coerceAtMost(if (dur > 0) dur else Long.MAX_VALUE))
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Forward30,
+                    contentDescription = "+15s",
+                    tint = Term.textDim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
     }
 }
 

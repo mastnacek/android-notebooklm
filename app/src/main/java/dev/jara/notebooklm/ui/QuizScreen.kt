@@ -7,6 +7,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -91,15 +95,15 @@ fun QuizScreen(
         // ── Header: progress + zpet ──
         Spacer(modifier = Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "‹",
-                color = Term.textDim,
-                fontFamily = Term.font,
-                fontSize = 20.sp,
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Zpět",
+                tint = Term.textDim,
                 modifier = Modifier
+                    .size(24.dp)
                     .clip(RoundedCornerShape(DS.microRadius))
                     .clickable { onBack() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(2.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -154,32 +158,54 @@ fun QuizScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     if (hintRevealed || answered) {
                         val hintShape = RoundedCornerShape(DS.cardRadius)
-                        Text(
-                            text = highlightMarkers("💡 ${q.original.hint}", Term.yellow),
-                            color = Term.yellow,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                            textAlign = TextAlign.Center,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(hintShape)
                                 .background(Term.yellow.copy(alpha = 0.08f))
                                 .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintShape)
                                 .padding(12.dp),
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Lightbulb,
+                                contentDescription = "Nápověda",
+                                tint = Term.yellow,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = highlightMarkers(q.original.hint, Term.yellow),
+                                color = Term.yellow,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSize,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     } else {
                         val hintBtnShape = RoundedCornerShape(DS.buttonRadius)
-                        Text(
-                            text = "💡 Nápověda",
-                            color = Term.yellow,
-                            fontFamily = Term.font,
-                            fontSize = Term.fontSize,
-                            textAlign = TextAlign.Center,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(hintBtnShape)
                                 .border(DS.borderWidth, Term.yellow.copy(alpha = DS.borderAlpha), hintBtnShape)
                                 .clickable { hintRevealed = true }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Lightbulb,
+                                contentDescription = null,
+                                tint = Term.yellow,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Nápověda",
+                                color = Term.yellow,
+                                fontFamily = Term.font,
+                                fontSize = Term.fontSize,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
             }
@@ -397,8 +423,8 @@ private fun QuizResultScreen(
         )
         Spacer(modifier = Modifier.height(32.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            DetailPill("↩ Opakovat", Term.cyan) { onRestart() }
-            DetailPill("✕ Zpět", Term.textDim) { onBack() }
+            DetailPill("Opakovat", Term.cyan) { onRestart() }
+            DetailPill("Zpět", Term.textDim) { onBack() }
         }
     }
 }

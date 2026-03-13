@@ -100,20 +100,20 @@ val DarkAppColors = AppColors(
 )
 
 val LightAppColors = AppColors(
-    bg = Gruvbox.Light0,
-    surface = Gruvbox.Light1,
-    surfaceLight = Gruvbox.Light2,
+    bg = Color(0xFFF9F5D7),          // Light0_hard — světlejší pozadí, karty vystoupí
+    surface = Gruvbox.Light1,        // #EBDBB2 — povrch karet
+    surfaceLight = Gruvbox.Light2,   // #D5C4A1 — zvýrazněná plocha (search, input)
     green = Gruvbox.FadedGreen,
     cyan = Gruvbox.FadedBlue,
     orange = Gruvbox.FadedOrange,
     red = Gruvbox.FadedRed,
     purple = Gruvbox.FadedPurple,
-    yellow = Gruvbox.NeutralYellow,  // #D79921 — primary CTA, kontrast 4.6:1 na Light0
+    yellow = Gruvbox.NeutralYellow,  // #D79921 — primary CTA
     disabled = Gruvbox.Light4,       // #A89984 — tlumená pro neaktivní prvky
-    text = Gruvbox.Dark0Hard,       // #1D2021 — max kontrast na Light0 pozadí
-    textDim = Gruvbox.Dark4,        // #7C6F64 — čitelnější než Light4
-    white = Gruvbox.Dark0,          // #282828 — důrazný text
-    border = Gruvbox.Light3,
+    text = Gruvbox.Dark0Hard,        // #1D2021 — max kontrast
+    textDim = Gruvbox.Dark2,         // #504945 — kontrast 5.9:1 na Light0_hard (WCAG AA)
+    white = Gruvbox.Dark0,           // #282828 — důrazný text
+    border = Gruvbox.Dark4,          // #7C6F64 — ostré terminálové bordery, jasně viditelné
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
@@ -167,8 +167,8 @@ fun NotebookLmTheme(
             primary = Gruvbox.FadedBlue,
             secondary = Gruvbox.FadedGreen,
             tertiary = Gruvbox.FadedOrange,
-            background = Gruvbox.Light0,
-            surface = Gruvbox.Light0,
+            background = Color(0xFFF9F5D7),
+            surface = Color(0xFFF9F5D7),
             surfaceVariant = Gruvbox.Light2,
             onPrimary = Gruvbox.Light0,
             onSecondary = Gruvbox.Light0,
@@ -190,7 +190,7 @@ fun NotebookLmTheme(
             insetsController.isAppearanceLightNavigationBars = !darkTheme
             // Neprůhledný status bar — app nekrvácí do systémové oblasti
             @Suppress("DEPRECATION")
-            window.statusBarColor = if (darkTheme) 0xFF1D2021.toInt() else 0xFFEBDBB2.toInt()
+            window.statusBarColor = if (darkTheme) 0xFF1D2021.toInt() else 0xFFF9F5D7.toInt()
             @Suppress("DEPRECATION")
             window.navigationBarColor = if (darkTheme) 0xFF282828.toInt() else 0xFFEBDBB2.toInt()
         }

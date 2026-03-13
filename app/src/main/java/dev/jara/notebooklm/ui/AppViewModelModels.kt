@@ -20,13 +20,13 @@ enum class DetailTab { CHAT, SOURCES, ARTIFACTS, NOTES }
 
 /** Razeni seznamu sesitu — jako Rust NotebookSort */
 enum class NotebookSort(val label: String) {
-    DEFAULT("⏱"),
-    MODIFIED("✎"),
-    CREATED("★"),
-    NAME_ASC("A↓"),
-    NAME_DESC("Z↓"),
-    CATEGORY("◆"),
-    SOURCES("⊞");
+    DEFAULT("Datum"),
+    MODIFIED("Změna"),
+    CREATED("Nový"),
+    NAME_ASC("A-Z"),
+    NAME_DESC("Z-A"),
+    CATEGORY("Kat."),
+    SOURCES("Zdr.");
 
     fun next(): NotebookSort = entries[(ordinal + 1) % entries.size]
 }
@@ -134,6 +134,19 @@ data class SourceScanState(
     val progress: String = "",
     val done: Boolean = false,
     val error: String? = null,
+)
+
+/** Stav source discovery */
+data class SourceDiscoveryState(
+    val running: Boolean = false,
+    val query: String = "",
+    val taskId: String? = null,
+    val sources: List<dev.jara.notebooklm.rpc.DiscoveredSource> = emptyList(),
+    val summary: String = "",
+    val done: Boolean = false,
+    val error: String? = null,
+    val selectedUrls: Set<String> = emptySet(),
+    val importing: Boolean = false,
 )
 
 /** Indikátory stavu notebooku (pro UI tečky) */

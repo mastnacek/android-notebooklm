@@ -45,6 +45,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -92,6 +95,10 @@ fun NotebookListScreen(
     sourceGroups: Map<String, String>,
     onDedupSelected: (Set<String>) -> Unit,
     accountInfo: AccountInfo?,
+    onArtifactsClick: (Notebook) -> Unit = {},
+    miniPlayerTitle: String? = null,
+    onMiniPlayerClick: () -> Unit = {},
+    onMiniPlayerStop: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -147,17 +154,18 @@ fun NotebookListScreen(
             }
         },
     ) { _ ->
+    // Selection mode — deklarace před Box aby byly dostupné i v overlays
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val selectionMode = selectedIds.isNotEmpty()
+    var renameTarget by remember { mutableStateOf<Notebook?>(null) }
+    var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // Selection mode
-        var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-        val selectionMode = selectedIds.isNotEmpty()
-
         // Rename notebook dialog
-        var renameTarget by remember { mutableStateOf<Notebook?>(null) }
         if (renameTarget != null) {
             RenameNotebookDialog(
                 currentTitle = renameTarget!!.title,
@@ -170,7 +178,6 @@ fun NotebookListScreen(
         }
 
         // Delete notebook confirmation (single or batch)
-        var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         if (deleteConfirmIds.isNotEmpty()) {
             val count = deleteConfirmIds.size
             val displayText = if (count == 1) {
@@ -200,104 +207,6 @@ fun NotebookListScreen(
 
         // ── Header je overlay v Box dole ──
         LaunchedEffect(selectionMode) { if (selectionMode) barsVisible = true }
-
-        // ── Selection action bar ──
-        if (selectionMode) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Term.surfaceLight),
-            ) {
-                // Horní řádek: počet + vše/žádný + zavřít
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "${selectedIds.size}×",
-                        color = Term.cyan,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSizeLg,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    ActionPill(
-                        text = if (selectedIds.size == notebooks.size) "Žádný" else "Vše",
-                        color = Term.cyan,
-                        onClick = {
-                            selectedIds = if (selectedIds.size == notebooks.size) emptySet()
-                            else notebooks.map { it.id }.toSet()
-                        },
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    ActionPill(
-                        text = "✕",
-                        color = Term.textDim,
-                        onClick = { selectedIds = emptySet() },
-                    )
-                }
-                // Spodní řádek: scrollovatelné batch akce
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (hasApiKey) {
-                        ActionPill(
-                            text = "Embed",
-                            color = Term.green,
-                            onClick = {
-                                onEmbedNotebooks(selectedIds)
-                                selectedIds = emptySet()
-                            },
-                        )
-                        ActionPill(
-                            text = "AI kat.",
-                            color = Term.purple,
-                            onClick = {
-                                onClassifySelected(selectedIds)
-                                selectedIds = emptySet()
-                            },
-                        )
-                        ActionPill(
-                            text = "Zdroje",
-                            color = Color(0xFF7AA2F7),
-                            onClick = {
-                                onScanSources(selectedIds)
-                                selectedIds = emptySet()
-                            },
-                        )
-                    }
-                    ActionPill(
-                        text = "Dedup",
-                        color = Term.red,
-                        onClick = {
-                            onDedupSelected(selectedIds)
-                            selectedIds = emptySet()
-                        },
-                    )
-                    if (selectedIds.size == 1) {
-                        ActionPill(
-                            text = "✏ Přejmenovat",
-                            color = Term.orange,
-                            onClick = {
-                                renameTarget = notebooks.find { it.id == selectedIds.first() }
-                                selectedIds = emptySet()
-                            },
-                        )
-                    }
-                    ActionPill(
-                        text = if (selectedIds.size > 1) "🗑 ${selectedIds.size}" else "🗑",
-                        color = Term.red,
-                        onClick = { deleteConfirmIds = selectedIds },
-                    )
-                }
-            }
-        }
 
         val fulltextFiltered = remember(notebooks, query, semanticMode) {
             if (semanticMode || query.isBlank()) notebooks
@@ -391,7 +300,7 @@ fun NotebookListScreen(
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionPill("＋ Nový", Term.yellow) { showCreateDialog = true }
+                        ActionPill("Nový", Term.yellow) { showCreateDialog = true }
                         ActionPill("⟳ Sync", Term.cyan) { onRefresh() }
                     }
                 }
@@ -443,6 +352,7 @@ fun NotebookListScreen(
                                     onToggleFavorite = { onToggleFavorite(nb.id) },
                                     onClassify = { onClassifySelected(setOf(nb.id)) },
                                     onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
+                                    onArtifactsClick = { onArtifactsClick(nb) },
                                 )
                             }
                         }
@@ -485,6 +395,7 @@ fun NotebookListScreen(
                                     onToggleFavorite = { onToggleFavorite(nb.id) },
                                     onClassify = { onClassifySelected(setOf(nb.id)) },
                                     onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
+                                    onArtifactsClick = { onArtifactsClick(nb) },
                                 )
                             }
                         }
@@ -510,6 +421,7 @@ fun NotebookListScreen(
                             onToggleFavorite = { onToggleFavorite(nb.id) },
                             onClassify = { onClassifySelected(setOf(nb.id)) },
                             onEmbed = { onEmbedNotebooks(setOf(nb.id)) },
+                            onArtifactsClick = { onArtifactsClick(nb) },
                         )
                     }
                 }
@@ -541,7 +453,12 @@ fun NotebookListScreen(
                 ) {
                     val totalSelected = facetFilter.topics.size + facetFilter.formats.size +
                         facetFilter.purposes.size + facetFilter.domains.size + facetFilter.freshnesses.size
-                    Text("☷", color = if (totalSelected > 0) Term.cyan else Term.textDim, fontSize = 16.sp)
+                    Icon(
+                        imageVector = Icons.Filled.FilterList,
+                        contentDescription = "Filtr",
+                        tint = if (totalSelected > 0) Term.cyan else Term.textDim,
+                        modifier = Modifier.size(18.dp),
+                    )
                     if (totalSelected > 0) {
                         Text(
                             "$totalSelected",
@@ -592,6 +509,104 @@ fun NotebookListScreen(
             exit = slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
+            if (selectionMode) {
+                // ── Selection action bar (overlay místo headeru) ──
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Term.surfaceLight)
+                        .statusBarsPadding(),
+                ) {
+                    // Horní řádek: počet + vše/žádný + zavřít
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "${selectedIds.size}×",
+                            color = Term.cyan,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSizeLg,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        ActionPill(
+                            text = if (selectedIds.size == notebooks.size) "Žádný" else "Vše",
+                            color = Term.cyan,
+                            onClick = {
+                                selectedIds = if (selectedIds.size == notebooks.size) emptySet()
+                                else notebooks.map { it.id }.toSet()
+                            },
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        ActionPill(
+                            text = "Zrušit",
+                            color = Term.textDim,
+                            onClick = { selectedIds = emptySet() },
+                        )
+                    }
+                    // Spodní řádek: scrollovatelné batch akce
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (hasApiKey) {
+                            ActionPill(
+                                text = "Embed",
+                                color = Term.green,
+                                onClick = {
+                                    onEmbedNotebooks(selectedIds)
+                                    selectedIds = emptySet()
+                                },
+                            )
+                            ActionPill(
+                                text = "AI kat.",
+                                color = Term.purple,
+                                onClick = {
+                                    onClassifySelected(selectedIds)
+                                    selectedIds = emptySet()
+                                },
+                            )
+                            ActionPill(
+                                text = "Zdroje",
+                                color = Color(0xFF7AA2F7),
+                                onClick = {
+                                    onScanSources(selectedIds)
+                                    selectedIds = emptySet()
+                                },
+                            )
+                        }
+                        ActionPill(
+                            text = "Dedup",
+                            color = Term.red,
+                            onClick = {
+                                onDedupSelected(selectedIds)
+                                selectedIds = emptySet()
+                            },
+                        )
+                        if (selectedIds.size == 1) {
+                            ActionPill(
+                                text = "Přejmenovat",
+                                color = Term.orange,
+                                onClick = {
+                                    renameTarget = notebooks.find { it.id == selectedIds.first() }
+                                    selectedIds = emptySet()
+                                },
+                            )
+                        }
+                        ActionPill(
+                            text = if (selectedIds.size > 1) "Smazat ${selectedIds.size}" else "Smazat",
+                            color = Term.red,
+                            onClick = { deleteConfirmIds = selectedIds },
+                        )
+                    }
+                }
+            } else {
             Column(modifier = Modifier.background(Term.bg)) {
                 Row(
                     modifier = Modifier
@@ -621,11 +636,50 @@ fun NotebookListScreen(
                             .padding(horizontal = 7.dp, vertical = 2.dp),
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "●",
-                        color = Term.green,
-                        fontSize = 10.sp,
-                    )
+
+                    // Mini player nebo online indikátor
+                    if (miniPlayerTitle != null) {
+                        val miniShape = RoundedCornerShape(DS.chipRadius)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(miniShape)
+                                .background(Term.green.copy(alpha = 0.12f))
+                                .border(DS.borderWidth, Term.green.copy(alpha = DS.borderAlpha), miniShape)
+                                .clickable { onMiniPlayerClick() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Headphones,
+                                contentDescription = "Přehrávání",
+                                tint = Term.green,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = miniPlayerTitle.take(15),
+                                color = Term.green,
+                                fontFamily = Term.font,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Zastavit",
+                                tint = Term.textDim,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { onMiniPlayerStop() },
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "●",
+                            color = Term.green,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
                 if (accountInfo != null) {
                     val tierColor = when (accountInfo.tier) {
@@ -649,6 +703,7 @@ fun NotebookListScreen(
                 }
                 StatusLegend()
             }
+            } // else (normal header)
         }
 
         // ── Bottom bar overlay — nepohybuje seznamem ──
@@ -681,18 +736,21 @@ fun NotebookListScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Mode toggle icon — tap to switch
-                    Text(
-                        text = if (semanticMode) "✨" else "🔍",
-                        fontSize = 18.sp,
+                    Icon(
+                        imageVector = if (semanticMode) Icons.Filled.AutoAwesome else Icons.Filled.Search,
+                        contentDescription = if (semanticMode) "Sémantické hledání" else "Textové hledání",
+                        tint = modeColor,
                         modifier = Modifier
+                            .size(20.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 semanticMode = !semanticMode
                                 if (!semanticMode) onClearSemantic()
                             }
-                            .padding(end = 10.dp),
+                            .padding(end = 2.dp),
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     // Search input
                     BasicTextField(
@@ -730,14 +788,15 @@ fun NotebookListScreen(
 
                     // Clear
                     if (query.isNotEmpty()) {
-                        Text(
-                            text = "✕",
-                            color = Term.textDim,
-                            fontSize = Term.fontSize,
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Vymazat hledání",
+                            tint = Term.textDim,
                             modifier = Modifier
+                                .size(18.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { query = ""; onClearSemantic() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                .padding(2.dp),
                         )
                     }
                 }

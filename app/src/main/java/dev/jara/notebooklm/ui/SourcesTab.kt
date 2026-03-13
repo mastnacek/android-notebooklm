@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshotFlow
@@ -21,6 +26,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,9 +49,15 @@ internal fun SourcesTab(
     onDedupSources: () -> Unit,
     onDismissDedup: () -> Unit,
     dedup: DeduplicationState,
+    discovery: SourceDiscoveryState = SourceDiscoveryState(),
+    onDiscoverSources: (String) -> Unit = {},
+    onToggleDiscoverySource: (String) -> Unit = {},
+    onImportDiscovered: () -> Unit = {},
+    onDismissDiscovery: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showDiscovery by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val selectionMode = selectedIds.isNotEmpty()
     var deleteConfirmIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -107,7 +119,7 @@ internal fun SourcesTab(
                         )
                     }
                 } else if (dedup.error != null) {
-                    Text("⚠", fontSize = 32.sp)
+                    Icon(Icons.Filled.Warning, "Chyba", tint = Term.orange, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = dedup.error,
@@ -116,9 +128,11 @@ internal fun SourcesTab(
                         fontSize = Term.fontSize,
                     )
                 } else if (dedup.done) {
-                    Text(
-                        text = if (dedup.totalDeleted > 0) "✓" else "👍",
-                        fontSize = 32.sp,
+                    Icon(
+                        imageVector = if (dedup.totalDeleted > 0) Icons.Filled.CheckCircle else Icons.Filled.ThumbUp,
+                        contentDescription = if (dedup.totalDeleted > 0) "Hotovo" else "Žádné duplikáty",
+                        tint = if (dedup.totalDeleted > 0) Term.green else Term.text,
+                        modifier = Modifier.size(32.dp),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -177,7 +191,12 @@ internal fun SourcesTab(
                             .padding(vertical = 32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(text = "\uD83D\uDCDA", fontSize = 48.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.LibraryBooks,
+                            contentDescription = null,
+                            tint = Term.cyan,
+                            modifier = Modifier.size(48.dp),
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "Žádné zdroje",
@@ -236,12 +255,23 @@ internal fun SourcesTab(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                DetailPill("🗑 ${selectedIds.size}", Term.red) {
+                DetailPill("Smazat ${selectedIds.size}", Term.red) {
                     deleteConfirmIds = selectedIds
                 }
-                DetailPill("✕", Term.textDim) { selectedIds = emptySet() }
+                IconDetailPill(Icons.Filled.Close, Term.textDim, "Zrušit výběr") { selectedIds = emptySet() }
             }
         } else {
+            // Discovery panel
+            if (showDiscovery || discovery.running || discovery.done) {
+                DiscoverSourcesPanel(
+                    discovery = discovery,
+                    onSearch = onDiscoverSources,
+                    onToggleSource = onToggleDiscoverySource,
+                    onImport = onImportDiscovered,
+                    onDismiss = { showDiscovery = false; onDismissDiscovery() },
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -250,7 +280,11 @@ internal fun SourcesTab(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DetailPill("＋ Zdroj", Term.yellow) { showAddDialog = true }
+                DetailPill("Zdroj", Term.yellow) { showAddDialog = true }
+                DetailPill(
+                    if (showDiscovery) "Zavřít" else "Najít",
+                    if (showDiscovery) Term.textDim else Term.cyan,
+                ) { showDiscovery = !showDiscovery; if (!showDiscovery) onDismissDiscovery() }
                 Spacer(modifier = Modifier.weight(1f))
                 if (detail.sources.size >= 2) {
                     DetailPill("Deduplikace", Term.orange) { onDedupSources() }
@@ -297,11 +331,13 @@ internal fun SelectableSourceCard(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = if (selected) "✓" else src.type.icon,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(end = 12.dp),
+        Icon(
+            imageVector = if (selected) Icons.Filled.CheckCircle else src.type.icon,
+            contentDescription = if (selected) "Vybráno" else src.type.name,
+            tint = if (selected) Term.green else Term.textDim,
+            modifier = Modifier.size(20.dp).padding(end = 2.dp),
         )
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = src.title,
             color = if (selected) Term.green else Term.text,
@@ -380,7 +416,12 @@ internal fun SwipeToDismissSourceCard(
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Smazat",
+                    tint = Term.white,
+                    modifier = Modifier.size(22.dp).scale(scale),
+                )
             }
         },
         enableDismissFromStartToEnd = false,
@@ -408,11 +449,13 @@ internal fun SourceCard(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = src.type.icon,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(end = 12.dp),
+        Icon(
+            imageVector = src.type.icon,
+            contentDescription = src.type.name,
+            tint = Term.textDim,
+            modifier = Modifier.size(20.dp),
         )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = src.title,
             color = Term.text,
@@ -420,11 +463,11 @@ internal fun SourceCard(
             fontSize = Term.fontSize,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            text = "‹ swipe",
-            color = Term.textDim,
-            fontFamily = Term.font,
-            fontSize = 11.sp,
+        Icon(
+            imageVector = Icons.Filled.SwipeLeft,
+            contentDescription = "Swipe pro smazání",
+            tint = Term.textDim,
+            modifier = Modifier.size(14.dp),
         )
     }
 }
@@ -461,15 +504,17 @@ internal fun AddSourceDialog(
 
             // Typ
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((type, label) in listOf("url" to "🌐 Web", "youtube" to "🎥 YT", "text" to "📝 Text")) {
-                    val selected = selectedType == type
+                data class SourceTypeOption(val type: String, val icon: ImageVector, val label: String)
+                val options = listOf(
+                    SourceTypeOption("url", Icons.Filled.Language, "Web"),
+                    SourceTypeOption("youtube", Icons.Filled.OndemandVideo, "YT"),
+                    SourceTypeOption("text", Icons.Filled.Description, "Text"),
+                )
+                for (opt in options) {
+                    val selected = selectedType == opt.type
                     val shape = RoundedCornerShape(DS.buttonRadius)
-                    Text(
-                        text = label,
-                        color = if (selected) Term.green else Term.textDim,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSize,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(shape)
                             .then(
@@ -478,9 +523,24 @@ internal fun AddSourceDialog(
                                     .border(DS.borderWidthSelected, Term.green.copy(alpha = DS.borderAlpha), shape)
                                 else Modifier.background(Term.bg)
                             )
-                            .clickable { selectedType = type }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
+                            .clickable { selectedType = opt.type }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Icon(
+                            imageVector = opt.icon,
+                            contentDescription = opt.label,
+                            tint = if (selected) Term.green else Term.textDim,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = opt.label,
+                            color = if (selected) Term.green else Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -518,6 +578,168 @@ internal fun AddSourceDialog(
                 Spacer(modifier = Modifier.width(8.dp))
                 DetailPill("Přidat", Term.yellow) {
                     if (value.isNotBlank()) onAdd(selectedType, value.trim(), title.trim())
+                }
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DISCOVER SOURCES PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+internal fun DiscoverSourcesPanel(
+    discovery: SourceDiscoveryState,
+    onSearch: (String) -> Unit,
+    onToggleSource: (String) -> Unit,
+    onImport: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf(discovery.query) }
+    val shape = RoundedCornerShape(14.dp)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Term.cyan.copy(alpha = 0.06f))
+            .border(DS.borderWidth, Term.cyan.copy(alpha = DS.borderAlpha), shape)
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.TravelExplore,
+                contentDescription = null,
+                tint = Term.cyan,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Najít zdroje",
+                color = Term.cyan,
+                fontFamily = Term.font,
+                fontSize = Term.fontSizeLg,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (!discovery.done && !discovery.running) {
+            // Search input
+            Spacer(modifier = Modifier.height(8.dp))
+            DetailInput(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = "Co hledáš? (např. machine learning)",
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            DetailPill("Hledat", Term.cyan) {
+                if (query.isNotBlank()) onSearch(query.trim())
+            }
+        }
+
+        if (discovery.running) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(
+                    color = Term.cyan,
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (discovery.sources.isEmpty()) "Hledám zdroje…"
+                           else "Nalezeno ${discovery.sources.size}, hledám další…",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                )
+            }
+        }
+
+        if (discovery.error != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = discovery.error,
+                color = Term.red,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+            )
+        }
+
+        if (discovery.summary.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = discovery.summary,
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = Term.fontSize,
+                maxLines = 3,
+            )
+        }
+
+        // Výsledky
+        if (discovery.sources.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            for (src in discovery.sources) {
+                val selected = src.url in discovery.selectedUrls
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) Term.cyan.copy(alpha = DS.selectionAlpha) else Color.Transparent)
+                        .clickable { onToggleSource(src.url) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = if (selected) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                        contentDescription = null,
+                        tint = if (selected) Term.cyan else Term.textDim,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = src.title,
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = src.url,
+                            color = Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+
+            if (discovery.done && !discovery.importing) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DetailPill(
+                        "Importovat ${discovery.selectedUrls.size}",
+                        Term.cyan,
+                    ) { onImport() }
+                    DetailPill("Zrušit", Term.textDim) { onDismiss() }
+                }
+            }
+
+            if (discovery.importing) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        color = Term.cyan,
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Importuji…", color = Term.textDim, fontFamily = Term.font, fontSize = Term.fontSize)
                 }
             }
         }

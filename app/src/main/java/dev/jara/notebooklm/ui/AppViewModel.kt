@@ -64,6 +64,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     internal val _detailDedup = MutableStateFlow(DeduplicationState())
     val detailDedup: StateFlow<DeduplicationState> get() = _detailDedup
 
+    internal val _discovery = MutableStateFlow(SourceDiscoveryState())
+    val discovery: StateFlow<SourceDiscoveryState> get() = _discovery
+
     internal val _classify = MutableStateFlow(ClassificationState())
     val classify: StateFlow<ClassificationState> get() = _classify
 
@@ -583,6 +586,145 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissSourceScan() { _sourceScan.value = SourceScanState() }
     fun clearSemanticResults() { _semanticResults.value = null }
     fun dismissError() { _error.value = null }
+    fun dismissDiscovery() { _discovery.value = SourceDiscoveryState() }
+
+    // ── Quick Artifacts Dialog ──
+
+    private val _quickArtifacts = MutableStateFlow<List<Artifact>?>(null)
+    val quickArtifacts: StateFlow<List<Artifact>?> get() = _quickArtifacts
+    private val _quickArtifactsLoading = MutableStateFlow(false)
+    val quickArtifactsLoading: StateFlow<Boolean> get() = _quickArtifactsLoading
+    private val _quickArtifactsNotebook = MutableStateFlow<Notebook?>(null)
+    val quickArtifactsNotebook: StateFlow<Notebook?> get() = _quickArtifactsNotebook
+
+    fun loadQuickArtifacts(notebook: Notebook) {
+        val tokens = authManager.loadTokens() ?: return
+        _lastQuickNotebook = notebook
+        _quickArtifactsNotebook.value = notebook
+        _quickArtifactsLoading.value = true
+        _quickArtifacts.value = emptyList()
+        viewModelScope.launch {
+            try {
+                val api = NotebookLmApi(httpClient, tokens)
+                _quickArtifacts.value = api.listArtifacts(notebook.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "loadQuickArtifacts", e)
+                _quickArtifacts.value = emptyList()
+            } finally {
+                _quickArtifactsLoading.value = false
+            }
+        }
+    }
+
+    fun dismissQuickArtifacts() {
+        // Zavre dialog ale NECHÁ player hrát — mini player v headeru
+        _quickArtifactsNotebook.value = null
+        _quickArtifacts.value = null
+    }
+
+    fun stopAndDismissQuickPlayer() {
+        _quickPlayerUrl.value = null
+        _quickArtifactsNotebook.value = null
+        _quickArtifacts.value = null
+    }
+
+    /** Znovu otevře dialog pro notebook který právě hraje */
+    fun reopenQuickArtifacts() {
+        // Potřebujeme notebook ID — uložíme si ho
+        val nb = _lastQuickNotebook ?: return
+        loadQuickArtifacts(nb)
+    }
+
+    private var _lastQuickNotebook: Notebook? = null
+
+    private val _quickPlayerUrl = MutableStateFlow<String?>(null)
+    val quickPlayerUrl: StateFlow<String?> get() = _quickPlayerUrl
+    private val _quickPlayerTitle = MutableStateFlow("")
+    val quickPlayerTitle: StateFlow<String> get() = _quickPlayerTitle
+    private val _quickPlayerCookies = MutableStateFlow("")
+    val quickPlayerCookies: StateFlow<String> get() = _quickPlayerCookies
+
+    fun playAudioFromList(url: String, title: String) {
+        val cookies = authManager.loadTokens()?.cookies ?: ""
+        _quickPlayerUrl.value = url
+        _quickPlayerTitle.value = title
+        _quickPlayerCookies.value = cookies
+    }
+
+    fun stopQuickPlayer() {
+        _quickPlayerUrl.value = null
+    }
+
+    // ── Source Discovery ──
+
+    fun discoverSources(query: String) {
+        val tokens = authManager.loadTokens() ?: return
+        val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
+        _discovery.value = SourceDiscoveryState(running = true, query = query)
+        viewModelScope.launch {
+            try {
+                val api = NotebookLmApi(httpClient, tokens)
+                val taskId = api.startDiscoverSources(nb.id, query)
+                if (taskId == null) {
+                    _discovery.value = _discovery.value.copy(running = false, error = "Nepodařilo se spustit hledání")
+                    return@launch
+                }
+                _discovery.value = _discovery.value.copy(taskId = taskId)
+
+                // Poll loop
+                for (i in 0 until 60) {
+                    kotlinx.coroutines.delay(2000)
+                    val result = api.pollDiscoverSources(nb.id)
+                    if (result != null) {
+                        _discovery.value = _discovery.value.copy(
+                            sources = result.sources,
+                            summary = result.summary,
+                            selectedUrls = result.sources.map { it.url }.toSet(),
+                        )
+                        if (result.status == "completed") {
+                            _discovery.value = _discovery.value.copy(running = false, done = true, taskId = result.taskId)
+                            return@launch
+                        }
+                    }
+                }
+                _discovery.value = _discovery.value.copy(running = false, error = "Timeout")
+            } catch (e: Exception) {
+                Log.e(TAG, "discoverSources", e)
+                _discovery.value = _discovery.value.copy(running = false, error = e.message)
+            }
+        }
+    }
+
+    fun toggleDiscoverySource(url: String) {
+        val current = _discovery.value.selectedUrls
+        _discovery.value = _discovery.value.copy(
+            selectedUrls = if (url in current) current - url else current + url
+        )
+    }
+
+    fun importDiscoveredSources() {
+        val tokens = authManager.loadTokens() ?: return
+        val nb = (_screen.value as? Screen.NotebookDetail)?.notebook ?: return
+        val state = _discovery.value
+        val taskId = state.taskId ?: return
+        val toImport = state.sources.filter { it.url in state.selectedUrls }
+        if (toImport.isEmpty()) return
+
+        _discovery.value = state.copy(importing = true)
+        viewModelScope.launch {
+            try {
+                val api = NotebookLmApi(httpClient, tokens)
+                api.importDiscoveredSources(nb.id, taskId, toImport)
+                _discovery.value = SourceDiscoveryState()
+                // Refresh sources
+                val sources = api.getSources(nb.id)
+                _detail.value = _detail.value.copy(sources = sources)
+            } catch (e: Exception) {
+                Log.e(TAG, "importDiscoveredSources", e)
+                _discovery.value = _discovery.value.copy(importing = false, error = e.message)
+            }
+        }
+    }
 
     /** Přepočítá union-find skupiny ze zdrojů v DB */
     fun refreshSourceGroups() {

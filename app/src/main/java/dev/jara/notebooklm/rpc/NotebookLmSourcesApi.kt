@@ -165,3 +165,152 @@ private fun extractSourceId(result: JsonElement?): String? {
             ?.getOrNull(0)?.jsonPrimitive?.contentOrNull
     } catch (_: Exception) { null }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SOURCE DISCOVERY — hledani novych zdroju pres AI
+// ══════════════════════════════════════════════════════════════════════════════
+
+data class DiscoveredSource(val url: String, val title: String)
+
+data class DiscoveryResult(
+    val taskId: String,
+    val status: String, // "in_progress" | "completed"
+    val query: String,
+    val sources: List<DiscoveredSource>,
+    val summary: String,
+)
+
+/** Spusti fast research — AI najde relevantni zdroje pro query */
+suspend fun NotebookLmApi.startDiscoverSources(notebookId: String, query: String): String? {
+    val params = buildJsonArray {
+        add(buildJsonArray {
+            add(JsonPrimitive(query))
+            add(JsonPrimitive(1)) // 1 = Web
+        })
+        add(JsonNull)
+        add(JsonPrimitive(1))
+        add(JsonPrimitive(notebookId))
+    }
+    val result = rpcCall(
+        RpcMethod.DISCOVER_SOURCES_MANIFOLD, params,
+        sourcePath = "/notebook/$notebookId"
+    ) ?: return null
+
+    // Response: [task_id, ...]
+    return try {
+        result.jsonArray.getOrNull(0)?.jsonPrimitive?.contentOrNull
+            ?: result.jsonArray.getOrNull(0)?.jsonArray?.getOrNull(0)?.jsonPrimitive?.contentOrNull
+    } catch (e: Exception) {
+        Log.e(TAG, "startDiscoverSources: parse error: ${e.message}")
+        Log.i(TAG, "startDiscoverSources raw: ${result.toString().take(500)}")
+        null
+    }
+}
+
+/** Polluje vysledky discovery — vraci aktualni stav */
+suspend fun NotebookLmApi.pollDiscoverSources(notebookId: String): DiscoveryResult? {
+    val params = buildJsonArray {
+        add(JsonNull)
+        add(JsonNull)
+        add(JsonPrimitive(notebookId))
+    }
+    val result = rpcCall(
+        RpcMethod.LIST_DISCOVER_SOURCES_JOB, params,
+        sourcePath = "/notebook/$notebookId"
+    ) ?: return null
+
+    return try {
+        Log.i(TAG, "pollDiscoverSources raw: ${result.toString().take(1000)}")
+        parseDiscoveryResult(result)
+    } catch (e: Exception) {
+        Log.e(TAG, "pollDiscoverSources: parse error: ${e.message}")
+        null
+    }
+}
+
+private fun parseDiscoveryResult(data: JsonElement): DiscoveryResult? {
+    // Odpoved je hluboko vnorena — hledame task list
+    val outer = data.jsonArray
+    // Muze byt [[[task_id, task_info]]] nebo [[task_id, task_info]]
+    val taskList = outer.getOrNull(0)?.jsonArray ?: return null
+
+    // Najdi prvni task
+    val taskEntry = if (taskList.isNotEmpty() && taskList[0] is JsonArray) {
+        taskList[0].jsonArray
+    } else {
+        taskList
+    }
+
+    val taskId = taskEntry.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: return null
+    val taskInfo = taskEntry.getOrNull(1)?.jsonArray ?: return null
+
+    // taskInfo[1] = query info, taskInfo[3] = sources+summary, taskInfo[4] = status
+    val query = try {
+        taskInfo.getOrNull(1)?.jsonArray?.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: ""
+    } catch (_: Exception) { "" }
+
+    val statusCode = try {
+        taskInfo.getOrNull(4)?.jsonPrimitive?.intOrNull ?: 1
+    } catch (_: Exception) { 1 }
+    val status = if (statusCode >= 2) "completed" else "in_progress"
+
+    val sources = mutableListOf<DiscoveredSource>()
+    val summary = try {
+        val sourcesAndSummary = taskInfo.getOrNull(3)?.jsonArray
+        val sourcesList = sourcesAndSummary?.getOrNull(0)?.jsonArray
+
+        if (sourcesList != null) {
+            for (src in sourcesList) {
+                try {
+                    val arr = src.jsonArray
+                    val url = arr.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: continue
+                    val title = arr.getOrNull(1)?.jsonPrimitive?.contentOrNull ?: url
+                    sources.add(DiscoveredSource(url, title))
+                } catch (_: Exception) {}
+            }
+        }
+        sourcesAndSummary?.getOrNull(1)?.jsonPrimitive?.contentOrNull ?: ""
+    } catch (_: Exception) { "" }
+
+    return DiscoveryResult(taskId, status, query, sources, summary)
+}
+
+/** Importuje vybrane zdroje z discovery do notebooku */
+suspend fun NotebookLmApi.importDiscoveredSources(
+    notebookId: String,
+    taskId: String,
+    sources: List<DiscoveredSource>,
+): Int {
+    if (sources.isEmpty()) return 0
+
+    val sourceArray = buildJsonArray {
+        for (src in sources) {
+            add(buildJsonArray {
+                add(JsonNull); add(JsonNull)
+                add(buildJsonArray {
+                    add(JsonPrimitive(src.url))
+                    add(JsonPrimitive(src.title))
+                })
+                add(JsonNull); add(JsonNull); add(JsonNull); add(JsonNull)
+                add(JsonNull); add(JsonNull); add(JsonNull)
+                add(JsonPrimitive(2))
+            })
+        }
+    }
+
+    val params = buildJsonArray {
+        add(JsonNull)
+        add(buildJsonArray { add(JsonPrimitive(1)) })
+        add(JsonPrimitive(taskId))
+        add(JsonPrimitive(notebookId))
+        add(sourceArray)
+    }
+
+    val result = rpcCall(
+        RpcMethod.FINISH_DISCOVER_SOURCES, params,
+        sourcePath = "/notebook/$notebookId"
+    )
+
+    Log.i(TAG, "importDiscoveredSources: result=${result?.toString()?.take(500)}")
+    return sources.size
+}

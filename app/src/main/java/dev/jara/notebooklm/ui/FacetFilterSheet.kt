@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,9 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -94,13 +98,22 @@ internal fun FacetFilterPanel(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "☷ Filtr",
-                        color = Term.white,
-                        fontFamily = Term.font,
-                        fontSize = Term.fontSizeXl,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.FilterList,
+                            contentDescription = null,
+                            tint = Term.white,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Filtr",
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSizeXl,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     if (activeCount > 0) {
                         // Badge s počtem
@@ -248,11 +261,11 @@ private fun AccordionSection(
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text(
-                text = if (expanded) "▾" else "▸",
-                color = Term.textDim,
-                fontFamily = Term.font,
-                fontSize = Term.fontSize,
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
+                contentDescription = if (expanded) "Sbalit" else "Rozbalit",
+                tint = Term.textDim,
+                modifier = Modifier.size(18.dp),
             )
         }
 
@@ -290,7 +303,7 @@ private fun FacetChip(
     val textColor = if (selected) Term.bg else Term.text
 
     Text(
-        text = if (selected) "✓ $text" else text,
+        text = text,
         color = textColor,
         fontFamily = Term.font,
         fontSize = Term.fontSize,

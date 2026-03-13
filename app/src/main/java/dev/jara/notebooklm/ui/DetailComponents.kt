@@ -51,10 +51,10 @@ internal fun DetailPill(
 }
 
 @Composable
-internal fun IconMicroAction(icon: ImageVector, color: Color, onClick: () -> Unit) {
+internal fun IconMicroAction(icon: ImageVector, color: Color, contentDesc: String? = null, onClick: () -> Unit) {
     Icon(
         imageVector = icon,
-        contentDescription = null,
+        contentDescription = contentDesc,
         tint = color,
         modifier = Modifier
             .size(20.dp)
@@ -65,11 +65,11 @@ internal fun IconMicroAction(icon: ImageVector, color: Color, onClick: () -> Uni
 }
 
 @Composable
-internal fun IconPill(icon: ImageVector, color: Color, onClick: () -> Unit) {
+internal fun IconPill(icon: ImageVector, color: Color, contentDesc: String? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.buttonRadius)
     Icon(
         imageVector = icon,
-        contentDescription = null,
+        contentDescription = contentDesc,
         tint = color,
         modifier = Modifier
             .size(30.dp)
@@ -77,6 +77,22 @@ internal fun IconPill(icon: ImageVector, color: Color, onClick: () -> Unit) {
             .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
             .clickable(onClick = onClick)
             .padding(5.dp),
+    )
+}
+
+@Composable
+internal fun IconDetailPill(icon: ImageVector, color: Color, contentDesc: String? = null, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(DS.buttonRadius)
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDesc,
+        tint = color,
+        modifier = Modifier
+            .size(34.dp)
+            .clip(shape)
+            .border(DS.borderWidth, color.copy(alpha = DS.borderAlpha), shape)
+            .clickable(onClick = onClick)
+            .padding(7.dp),
     )
 }
 

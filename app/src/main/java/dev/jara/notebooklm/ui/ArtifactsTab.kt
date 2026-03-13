@@ -7,9 +7,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshotFlow
@@ -21,6 +28,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -49,7 +57,7 @@ internal fun ArtifactsTab(
     val haptic = LocalHapticFeedback.current
 
     Box(modifier = modifier) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().imePadding()) {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
@@ -63,7 +71,12 @@ internal fun ArtifactsTab(
                                 .padding(vertical = 32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(text = "\uD83C\uDFA8", fontSize = 48.sp)
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = Term.purple,
+                                modifier = Modifier.size(48.dp),
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Zatím žádné artefakty",
@@ -107,7 +120,7 @@ internal fun ArtifactsTab(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DetailPill(
-                if (showGenerate) "✕ Zavřít" else "＋ Generovat",
+                if (showGenerate) "Zavřít" else "Generovat",
                 if (showGenerate) Term.textDim else Term.purple,
             ) { showGenerate = !showGenerate }
         }
@@ -153,6 +166,7 @@ internal fun GenerateArtifactPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .clip(shape)
             .background(Term.surface)
             .border(DS.borderWidth, Term.purple.copy(alpha = DS.borderAlpha), shape)
@@ -181,7 +195,12 @@ internal fun GenerateArtifactPanel(
                                 .clickable { selectedType = type }
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                         ) {
-                            Text(text = icon, fontSize = 22.sp)
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = type.label,
+                                tint = Term.purple,
+                                modifier = Modifier.size(22.dp),
+                            )
                             Text(type.label, color = Term.textDim, fontFamily = Term.font,
                                 fontSize = 10.sp, maxLines = 1)
                         }
@@ -192,9 +211,16 @@ internal fun GenerateArtifactPanel(
             // Parametry pro vybrany typ
             val type = selectedType!!
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MicroAction("‹", Term.cyan) { selectedType = null }
+                IconMicroAction(Icons.AutoMirrored.Filled.ArrowBack, Term.cyan, "Zpět") { selectedType = null }
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("${generateTypeIcon(type)} ${type.label}", color = Term.purple,
+                Icon(
+                    imageVector = generateTypeIcon(type),
+                    contentDescription = null,
+                    tint = Term.purple,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(type.label, color = Term.purple,
                     fontFamily = Term.font, fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -274,7 +300,7 @@ internal fun GenerateArtifactPanel(
             )
 
             Spacer(modifier = Modifier.height(10.dp))
-            DetailPill("▶ Spustit", Term.green) {
+            DetailPill("Spustit", Term.green) {
                 val opts = GenerateOptions(
                     instructions = instructions.takeIf { it.isNotBlank() },
                     audioFormat = audioFormat,
@@ -295,14 +321,14 @@ internal fun GenerateArtifactPanel(
     }
 }
 
-internal fun generateTypeIcon(type: GenerateType): String = when (type) {
-    GenerateType.AUDIO -> "🎧"
-    GenerateType.VIDEO -> "🎥"
-    GenerateType.QUIZ -> "❓"
-    GenerateType.MIND_MAP -> "🧠"
-    GenerateType.INFOGRAPHIC -> "🖼️"
-    GenerateType.SLIDE_DECK -> "📊"
-    GenerateType.DATA_TABLE -> "📋"
+internal fun generateTypeIcon(type: GenerateType): ImageVector = when (type) {
+    GenerateType.AUDIO -> Icons.Filled.Headphones
+    GenerateType.VIDEO -> Icons.Filled.OndemandVideo
+    GenerateType.QUIZ -> Icons.Filled.Quiz
+    GenerateType.MIND_MAP -> Icons.Filled.AccountTree
+    GenerateType.INFOGRAPHIC -> Icons.Filled.Wallpaper
+    GenerateType.SLIDE_DECK -> Icons.Filled.Slideshow
+    GenerateType.DATA_TABLE -> Icons.Filled.TableChart
 }
 
 @Composable
@@ -408,7 +434,12 @@ internal fun SwipeToDismissArtifactCard(
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                Text("🗑", fontSize = 20.sp, modifier = Modifier.scale(scale))
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Smazat",
+                    tint = Term.white,
+                    modifier = Modifier.size(22.dp).scale(scale),
+                )
             }
         },
         enableDismissFromStartToEnd = false,
@@ -443,7 +474,13 @@ internal fun ArtifactCard(
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = art.type.icon, fontSize = 22.sp, modifier = Modifier.padding(end = 10.dp))
+            Icon(
+                imageVector = art.type.icon,
+                contentDescription = art.type.label,
+                tint = statusColor,
+                modifier = Modifier.size(22.dp).padding(end = 2.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = art.title,
@@ -465,18 +502,18 @@ internal fun ArtifactCard(
             if (art.status == ArtifactStatus.COMPLETED) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (art.url != null && (art.type == ArtifactType.AUDIO || art.type == ArtifactType.VIDEO)) {
-                        DetailPill("▶", Term.green) { onPlayAudio(art.url!!, art.title) }
+                        IconDetailPill(Icons.Filled.PlayArrow, Term.green, "Přehrát") { onPlayAudio(art.url!!, art.title) }
                     }
                     if (art.type == ArtifactType.QUIZ) {
-                        DetailPill("🎮", Term.orange) { onOpenQuiz(art.id, art.title) }
-                        DetailPill("📤", Term.cyan) { onExportQuiz(art.id, art.title) }
+                        IconDetailPill(Icons.Filled.SportsEsports, Term.orange, "Kvíz") { onOpenQuiz(art.id, art.title) }
+                        IconDetailPill(Icons.Filled.IosShare, Term.cyan, "Export") { onExportQuiz(art.id, art.title) }
                     }
 
                     if (!isDownloading) {
                         if (downloadState?.done == true) {
-                            DetailPill("✓", Term.green) {}
+                            IconDetailPill(Icons.Filled.Check, Term.green, "Staženo") {}
                             val context = LocalContext.current
-                            DetailPill("↗", Term.orange) {
+                            IconDetailPill(Icons.AutoMirrored.Filled.OpenInNew, Term.orange, "Otevřít") {
                                 if (downloadState.filePath != null) {
                                     val uri = android.net.Uri.parse(downloadState.filePath)
                                     val mime = when (art.type) {
@@ -494,7 +531,7 @@ internal fun ArtifactCard(
                                 }
                             }
                         } else {
-                            DetailPill("⬇", Term.cyan) { onDownloadAudio(art) }
+                            IconDetailPill(Icons.Filled.Download, Term.cyan, "Stáhnout") { onDownloadAudio(art) }
                         }
                     }
                 }

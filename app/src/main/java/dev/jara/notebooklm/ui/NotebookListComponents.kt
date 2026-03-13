@@ -9,11 +9,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -103,17 +108,17 @@ private fun StatusDots(indicators: NotebookIndicators, modifier: Modifier = Modi
         indicators.classified to Color(0xFFE0AF68), // žlutá
         indicators.deduped to Term.red,              // červená
     )
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         for ((active, color) in dots) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(10.dp)
                     .then(
                         if (active) Modifier
                             .shadow(4.dp, CircleShape, ambientColor = color, spotColor = color)
                             .background(color, CircleShape)
                         else Modifier
-                            .border(1.dp, color.copy(alpha = 0.4f), CircleShape)
+                            .border(1.5.dp, color.copy(alpha = 0.5f), CircleShape)
                     )
             )
         }
@@ -132,6 +137,7 @@ internal fun NotebookCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onArtifactsClick: () -> Unit = {},
 ) {
     val shape = RoundedCornerShape(DS.cardRadius)
     val bgColor = if (isSelected) Term.cyan.copy(alpha = DS.selectionAlpha) else Term.surfaceLight
@@ -155,12 +161,13 @@ internal fun NotebookCard(
         ) {
             // Selection indicator
             if (selectionMode) {
-                Text(
-                    text = if (isSelected) "◉" else "○",
-                    color = if (isSelected) Term.cyan else Term.textDim,
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(end = 12.dp),
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = if (isSelected) "Vybráno" else "Nevybráno",
+                    tint = if (isSelected) Term.cyan else Term.textDim,
+                    modifier = Modifier.size(20.dp).padding(end = 2.dp),
                 )
+                Spacer(modifier = Modifier.width(10.dp))
             }
 
             // Emoji
@@ -192,34 +199,34 @@ internal fun NotebookCard(
                 }
                 if (nb.sourceTypes.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = sourceTypesSummary(nb.sourceTypes, nb.sourceCount),
-                        color = Term.textDim,
-                        fontSize = 11.sp,
-                    )
+                    SourceTypesSummaryRow(nb.sourceTypes)
                 }
             }
 
-            // Favorite toggle
+            // Artifacts + Favorite
             if (!selectionMode) {
-                Text(
-                    text = if (isFavorite) "★" else "☆",
-                    color = if (isFavorite) Term.orange else Term.textDim,
-                    fontSize = 18.sp,
+                Icon(
+                    imageVector = Icons.Filled.Headphones,
+                    contentDescription = "Artefakty",
+                    tint = Term.textDim,
                     modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onArtifactsClick() }
+                        .padding(5.dp),
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                    contentDescription = if (isFavorite) "Odebrat z oblíbených" else "Přidat do oblíbených",
+                    tint = if (isFavorite) Term.orange else Term.textDim,
+                    modifier = Modifier
+                        .size(28.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onToggleFavorite() }
-                        .padding(8.dp),
+                        .padding(4.dp),
                 )
             }
-
-            // Chevron
-            Text(
-                text = "›",
-                color = Term.textDim,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(start = 4.dp),
-            )
         }
 
         // StatusDots — pravý horní roh karty
@@ -242,9 +249,11 @@ internal fun NotebookCard(
                 )
             }
             if (nb.isShared) {
-                Text(
-                    text = "👥",
-                    fontSize = 12.sp,
+                Icon(
+                    imageVector = Icons.Filled.People,
+                    contentDescription = "Sdílený",
+                    tint = Term.textDim,
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -269,6 +278,7 @@ internal fun SwipeableNotebookItem(
     onToggleFavorite: () -> Unit,
     onClassify: () -> Unit,
     onEmbed: () -> Unit,
+    onArtifactsClick: () -> Unit = {},
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { false },
@@ -375,6 +385,7 @@ internal fun SwipeableNotebookItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
                 onToggleFavorite = onToggleFavorite,
+                onArtifactsClick = onArtifactsClick,
             )
         },
     )
@@ -437,7 +448,7 @@ internal fun CreateNotebookDialog(
                                 .background(Term.bg)
                                 .padding(12.dp)
                         ) {
-                            if (emoji.isEmpty()) Text("📓", color = Term.textDim, fontSize = 22.sp)
+                            if (emoji.isEmpty()) Icon(Icons.AutoMirrored.Filled.MenuBook, "Emoji", tint = Term.textDim, modifier = Modifier.size(22.dp))
                             inner()
                         }
                     },
@@ -495,12 +506,33 @@ internal fun RenameNotebookDialog(
     )
 }
 
-/** Souhrn typu zdroju — "📄3 🌐5 🎥1" */
-private fun sourceTypesSummary(types: Map<dev.jara.notebooklm.rpc.SourceType, Int>, total: Int): String {
-    if (types.isEmpty()) return "$total"
-    return types.entries
-        .sortedByDescending { it.value }
-        .joinToString(" ") { "${it.key.icon}${it.value}" }
+/** Souhrn typu zdroju — ikona+pocet pro kazdy typ */
+@Composable
+private fun SourceTypesSummaryRow(types: Map<dev.jara.notebooklm.rpc.SourceType, Int>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for ((type, count) in types.entries.sortedByDescending { it.value }) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Icon(
+                    imageVector = type.icon,
+                    contentDescription = type.name,
+                    tint = Term.textDim,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "$count",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                )
+            }
+        }
+    }
 }
 
 /** Relativni cas — "pred 2h", "pred 3d", "5. 3." */
@@ -634,12 +666,12 @@ internal fun BottomActionBar(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BottomAction("＋", "Nový", Term.green) { onCreateNotebook() }
-        BottomAction("⟳", "Sync", Term.cyan) { onRefresh() }
-        BottomAction("↕", sortLabel, Term.orange) { onCycleSort() }
-        BottomAction("⚙", "Nastavení", Term.textDim) { onSettings() }
+        BottomAction(Icons.Filled.Add, "Nový", Term.green) { onCreateNotebook() }
+        BottomAction(Icons.Filled.Sync, "Sync", Term.cyan) { onRefresh() }
+        BottomAction(Icons.Filled.SwapVert, sortLabel, Term.orange) { onCycleSort() }
+        BottomAction(Icons.Filled.Settings, "Nastavení", Term.textDim) { onSettings() }
         Box {
-            BottomAction("⋯", "", Term.textDim) { menuExpanded = true }
+            BottomAction(Icons.Filled.MoreHoriz, "", Term.textDim) { menuExpanded = true }
             DropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
@@ -670,7 +702,7 @@ internal fun BottomActionBar(
 
 @Composable
 internal fun BottomAction(
-    icon: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     color: Color,
     onClick: () -> Unit,
@@ -682,11 +714,11 @@ internal fun BottomAction(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        Text(
-            text = icon,
-            color = color,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+        Icon(
+            imageVector = icon,
+            contentDescription = label.ifEmpty { null },
+            tint = color,
+            modifier = Modifier.size(22.dp),
         )
         if (label.isNotEmpty()) {
             Spacer(modifier = Modifier.height(2.dp))
@@ -734,6 +766,163 @@ internal fun StatusLegend() {
                     fontFamily = Term.font,
                     fontSize = 10.sp,
                 )
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ARTIFACT QUICK DIALOG
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+internal fun ArtifactQuickDialog(
+    notebookTitle: String,
+    artifacts: List<dev.jara.notebooklm.rpc.Artifact>,
+    loading: Boolean,
+    onPlay: (url: String, title: String) -> Unit,
+    onStopPlayer: () -> Unit = {},
+    playerUrl: String? = null,
+    playerTitle: String = "",
+    playerCookies: String = "",
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(DS.dialogRadius))
+                .background(Term.surface)
+                .padding(20.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Headphones,
+                    contentDescription = null,
+                    tint = Term.purple,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = notebookTitle,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            // Inline player
+            if (playerUrl != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AudioPlayerBar(
+                    url = playerUrl,
+                    title = playerTitle,
+                    cookies = playerCookies,
+                    onClose = onStopPlayer,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (loading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        color = Term.purple,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Načítám artefakty…", color = Term.textDim, fontFamily = Term.font, fontSize = Term.fontSize)
+                }
+            } else if (artifacts.isEmpty()) {
+                Text(
+                    text = "Žádné artefakty",
+                    color = Term.textDim,
+                    fontFamily = Term.font,
+                    fontSize = Term.fontSize,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(artifacts) { art ->
+                        val isPlayable = art.url != null &&
+                            art.status == dev.jara.notebooklm.rpc.ArtifactStatus.COMPLETED &&
+                            (art.type == dev.jara.notebooklm.rpc.ArtifactType.AUDIO ||
+                             art.type == dev.jara.notebooklm.rpc.ArtifactType.VIDEO)
+                        val statusColor = when (art.status) {
+                            dev.jara.notebooklm.rpc.ArtifactStatus.COMPLETED -> Term.green
+                            dev.jara.notebooklm.rpc.ArtifactStatus.PROCESSING -> Term.orange
+                            dev.jara.notebooklm.rpc.ArtifactStatus.PENDING -> Term.cyan
+                            dev.jara.notebooklm.rpc.ArtifactStatus.FAILED -> Term.red
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Term.bg)
+                                .then(
+                                    if (isPlayable) Modifier.clickable { onPlay(art.url!!, art.title) }
+                                    else Modifier
+                                )
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = art.type.icon,
+                                contentDescription = art.type.label,
+                                tint = statusColor,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = art.title,
+                                    color = Term.white,
+                                    fontFamily = Term.font,
+                                    fontSize = Term.fontSize,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    text = "${art.type.label} · ${art.status.label}",
+                                    color = statusColor,
+                                    fontFamily = Term.font,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                            if (isPlayable) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Přehrát",
+                                    tint = Term.green,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                DetailPill("Zavřít", Term.textDim) { onDismiss() }
             }
         }
     }

@@ -14,8 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import dev.jara.notebooklm.rpc.*
 
@@ -41,6 +46,11 @@ fun NotebookDetailScreen(
     onExportQuiz: (String, String) -> Unit,
     onDeleteArtifact: (String) -> Unit,
     onDeleteNote: (String) -> Unit,
+    discovery: SourceDiscoveryState = SourceDiscoveryState(),
+    onDiscoverSources: (String) -> Unit = {},
+    onToggleDiscoverySource: (String) -> Unit = {},
+    onImportDiscovered: () -> Unit = {},
+    onDismissDiscovery: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -202,6 +212,8 @@ fun NotebookDetailScreen(
                 DetailTab.SOURCES -> SourcesTab(
                     detail, onAddSource, onDeleteSource, onDeleteSources,
                     onDedupSources, onDismissDedup, dedup,
+                    discovery, onDiscoverSources, onToggleDiscoverySource,
+                    onImportDiscovered, onDismissDiscovery,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 DetailTab.ARTIFACTS -> ArtifactsTab(
@@ -228,19 +240,15 @@ fun NotebookDetailScreen(
             // Taby (bez zpět — Android 13+ predictive back gesture)
             for (tab in DetailTab.entries) {
                 val selected = detail.tab == tab
-                val (label, color) = when (tab) {
-                    DetailTab.CHAT -> "💬" to Term.green
-                    DetailTab.SOURCES -> "📚 ${detail.sources.size}" to Term.cyan
-                    DetailTab.ARTIFACTS -> "🎨 ${detail.artifacts.size}" to Term.purple
-                    DetailTab.NOTES -> "📝 ${detail.notes.size}" to Term.orange
+                val (icon, label, color) = when (tab) {
+                    DetailTab.CHAT -> Triple(Icons.Filled.ChatBubble, "Chat", Term.green)
+                    DetailTab.SOURCES -> Triple(Icons.AutoMirrored.Filled.LibraryBooks, "${detail.sources.size}", Term.cyan)
+                    DetailTab.ARTIFACTS -> Triple(Icons.Filled.AutoAwesome, "${detail.artifacts.size}", Term.purple)
+                    DetailTab.NOTES -> Triple(Icons.AutoMirrored.Filled.StickyNote2, "${detail.notes.size}", Term.orange)
                 }
                 val shape = RoundedCornerShape(DS.buttonRadius)
-                Text(
-                    text = label,
-                    color = if (selected) color else Term.textDim,
-                    fontFamily = Term.font,
-                    fontSize = Term.fontSize,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(shape)
                         .then(
@@ -250,8 +258,24 @@ fun NotebookDetailScreen(
                             else Modifier
                         )
                         .clickable { onTabSwitch(tab) }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                )
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = tab.name,
+                        tint = if (selected) color else Term.textDim,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    if (label.isNotEmpty() && tab != DetailTab.CHAT) {
+                        Text(
+                            text = " $label",
+                            color = if (selected) color else Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    }
+                }
             }
         }
     }

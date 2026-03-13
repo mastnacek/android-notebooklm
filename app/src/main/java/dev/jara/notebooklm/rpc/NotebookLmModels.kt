@@ -1,5 +1,10 @@
 package dev.jara.notebooklm.rpc
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.ui.graphics.vector.ImageVector
+
 // Datove modely a enumy pro NotebookLM API — extrahované z NotebookLmApi tridy
 
 // ── Account ──
@@ -43,15 +48,15 @@ data class Source(
     val type: SourceType,
 )
 
-enum class SourceType(val icon: String) {
-    PDF("\uD83D\uDCC4"),
-    WEB("\uD83C\uDF10"),
-    YOUTUBE("\uD83C\uDFA5"),
-    TEXT("\uD83D\uDCDD"),
-    DRIVE("\uD83D\uDCC2"),
-    IMAGE("\uD83D\uDDBC"),
-    GDOC("\uD83D\uDCD1"),
-    OTHER("\uD83D\uDCC1");
+enum class SourceType(val icon: ImageVector) {
+    PDF(Icons.Filled.PictureAsPdf),
+    WEB(Icons.Filled.Language),
+    YOUTUBE(Icons.Filled.OndemandVideo),
+    TEXT(Icons.Filled.Description),
+    DRIVE(Icons.Filled.CloudQueue),
+    IMAGE(Icons.Filled.Image),
+    GDOC(Icons.Filled.Article),
+    OTHER(Icons.Filled.Folder);
 
     companion object {
         fun fromCode(code: Int): SourceType = when (code) {
@@ -70,15 +75,15 @@ enum class SourceType(val icon: String) {
 
 // ── Artifacts ──
 
-enum class ArtifactType(val code: Int, val icon: String, val label: String) {
-    AUDIO(1, "\uD83C\uDFA7", "Audio"),
-    REPORT(2, "\uD83D\uDCC4", "Report"),
-    VIDEO(3, "\uD83C\uDFA5", "Video"),
-    QUIZ(4, "\u2753", "Quiz"),
-    MIND_MAP(5, "\uD83E\uDDE0", "Mind Map"),
-    INFOGRAPHIC(7, "\uD83D\uDDBC\uFE0F", "Infographic"),
-    SLIDE_DECK(8, "\uD83D\uDCCA", "Prezentace"),
-    DATA_TABLE(9, "\uD83D\uDCCB", "Tabulka");
+enum class ArtifactType(val code: Int, val icon: ImageVector, val label: String) {
+    AUDIO(1, Icons.Filled.Headphones, "Audio"),
+    REPORT(2, Icons.Filled.Article, "Report"),
+    VIDEO(3, Icons.Filled.OndemandVideo, "Video"),
+    QUIZ(4, Icons.Filled.Quiz, "Quiz"),
+    MIND_MAP(5, Icons.Filled.AccountTree, "Mind Map"),
+    INFOGRAPHIC(7, Icons.Filled.Wallpaper, "Infographic"),
+    SLIDE_DECK(8, Icons.Filled.Slideshow, "Prezentace"),
+    DATA_TABLE(9, Icons.Filled.TableChart, "Tabulka");
 
     companion object {
         fun fromCode(code: Int): ArtifactType = entries.find { it.code == code } ?: REPORT
