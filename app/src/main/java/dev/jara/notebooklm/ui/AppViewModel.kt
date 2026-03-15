@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import dev.jara.notebooklm.auth.AuthManager
 import dev.jara.notebooklm.rpc.*
+import dev.jara.notebooklm.rpc.GeminiChatApi
 import dev.jara.notebooklm.search.EmbeddingDb
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -97,6 +98,79 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _accountInfo = MutableStateFlow<AccountInfo?>(null)
     val accountInfo: StateFlow<AccountInfo?> get() = _accountInfo
+
+    // ── Gemini Chat ──
+
+    /** Přepínání NotebookLM ↔ Gemini v hlavním seznamu */
+    private val _showGemini = MutableStateFlow(false)
+    val showGemini: StateFlow<Boolean> get() = _showGemini
+
+    private val _geminiChats = MutableStateFlow<List<GeminiChatApi.GeminiChat>>(emptyList())
+    val geminiChats: StateFlow<List<GeminiChatApi.GeminiChat>> get() = _geminiChats
+
+    private val _geminiLoading = MutableStateFlow(false)
+    val geminiLoading: StateFlow<Boolean> get() = _geminiLoading
+
+    private val _geminiTokensFetched = MutableStateFlow(false)
+
+    /** Gemini tokeny (CSRF + session) — jiné než NotebookLM tokeny */
+    private var geminiCsrf: String? = null
+    private var geminiSessionId: String? = null
+
+    fun toggleGemini() {
+        _showGemini.value = !_showGemini.value
+        if (_showGemini.value && _geminiChats.value.isEmpty() && !_geminiLoading.value) {
+            loadGeminiChats()
+        }
+    }
+
+    fun loadGeminiChats() {
+        val cookies = authManager.loadTokens()?.cookies ?: return
+        _geminiLoading.value = true
+        viewModelScope.launch {
+            try {
+                // Fetch Gemini-specific tokens if not yet done
+                if (!_geminiTokensFetched.value) {
+                    val tokens = GeminiChatApi.fetchGeminiTokens(httpClient, cookies)
+                    if (tokens != null) {
+                        geminiCsrf = tokens.csrfToken
+                        geminiSessionId = tokens.sessionId
+                        _geminiTokensFetched.value = true
+                    } else {
+                        _error.value = "Nelze načíst Gemini tokeny"
+                        _geminiLoading.value = false
+                        return@launch
+                    }
+                }
+
+                val api = GeminiChatApi(
+                    httpClient, cookies, geminiCsrf!!, geminiSessionId!!,
+                )
+                _geminiChats.value = api.listChats()
+            } catch (e: Exception) {
+                Log.e(TAG, "loadGeminiChats", e)
+                _error.value = "Gemini chyba: ${e.message}"
+            } finally {
+                _geminiLoading.value = false
+            }
+        }
+    }
+
+    fun deleteGeminiChat(chatId: String) {
+        val cookies = authManager.loadTokens()?.cookies ?: return
+        val csrf = geminiCsrf ?: return
+        val sid = geminiSessionId ?: return
+        viewModelScope.launch {
+            try {
+                val api = GeminiChatApi(httpClient, cookies, csrf, sid)
+                api.deleteChat(chatId)
+                _geminiChats.value = _geminiChats.value.filter { it.id != chatId }
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteGeminiChat", e)
+                _error.value = "Chyba mazání: ${e.message}"
+            }
+        }
+    }
 
     internal val _screen = MutableStateFlow<Screen>(
         if (authManager.isLoggedIn()) Screen.NotebookList else Screen.Login

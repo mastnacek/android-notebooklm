@@ -560,6 +560,110 @@ private fun relativeTime(epochSeconds: Long): String {
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// GEMINI CHAT CARD
+// ══════════════════════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun GeminiChatCard(
+    chat: dev.jara.notebooklm.rpc.GeminiChatApi.GeminiChat,
+    onDelete: () -> Unit,
+) {
+    val shape = RoundedCornerShape(DS.cardRadius)
+    var showDelete by remember { mutableStateOf(false) }
+
+    if (showDelete) {
+        AlertDialog(
+            onDismissRequest = { showDelete = false },
+            confirmButton = { ActionPill("Smazat", Term.red) { onDelete(); showDelete = false } },
+            dismissButton = { ActionPill("Zrušit", Term.textDim) { showDelete = false } },
+            title = {
+                Text("Smazat chat?", color = Term.white, fontFamily = Term.font,
+                    fontSize = Term.fontSizeLg, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(chat.title.take(60), color = Term.text, fontFamily = Term.font, fontSize = Term.fontSize)
+            },
+            containerColor = Term.surface,
+            shape = RoundedCornerShape(DS.dialogRadius),
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(DS.borderWidth, Term.border.copy(alpha = DS.borderAlpha), shape)
+            .background(Term.surfaceLight)
+            .combinedClickable(
+                onClick = { /* TODO: open chat detail */ },
+                onLongClick = { showDelete = true },
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Gemini icon
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = "Gemini",
+                tint = Color(0xFF4285F4),  // Google blue
+                modifier = Modifier.size(24.dp).padding(end = 4.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Texty
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = chat.title,
+                    color = Term.white,
+                    fontFamily = Term.font,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+                if (chat.lastMessage.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = chat.lastMessage,
+                        color = Term.textDim,
+                        fontFamily = Term.font,
+                        fontSize = Term.fontSize,
+                        maxLines = 2,
+                    )
+                }
+            }
+
+            // Delete
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = "Smazat",
+                tint = Term.textDim,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showDelete = true }
+                    .padding(2.dp),
+            )
+        }
+
+        // Timestamp
+        if (chat.timestamp > 0) {
+            Text(
+                text = relativeTime(chat.timestamp),
+                color = Term.textDim,
+                fontFamily = Term.font,
+                fontSize = 10.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
 /** Fuzzy match — kazdy znak query se musi vyskytovat v haystack v poradi */
 internal fun fuzzyMatch(haystack: String, query: String): Boolean {
     var qi = 0

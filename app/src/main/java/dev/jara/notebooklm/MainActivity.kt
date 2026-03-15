@@ -80,6 +80,9 @@ class MainActivity : ComponentActivity() {
             val quickArtifactsNotebook by viewModel.quickArtifactsNotebook.collectAsStateWithLifecycle()
             val quickPlayerUrl by viewModel.quickPlayerUrl.collectAsStateWithLifecycle()
             val quickPlayerTitle by viewModel.quickPlayerTitle.collectAsStateWithLifecycle()
+            val showGemini by viewModel.showGemini.collectAsStateWithLifecycle()
+            val geminiChats by viewModel.geminiChats.collectAsStateWithLifecycle()
+            val geminiLoading by viewModel.geminiLoading.collectAsStateWithLifecycle()
 
             val folderPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.OpenDocumentTree()
@@ -206,6 +209,11 @@ class MainActivity : ComponentActivity() {
                         miniPlayerTitle = quickPlayerUrl?.let { quickPlayerTitle },
                         onMiniPlayerClick = { viewModel.reopenQuickArtifacts() },
                         onMiniPlayerStop = { viewModel.stopAndDismissQuickPlayer() },
+                        showGemini = showGemini,
+                        geminiChats = geminiChats,
+                        geminiLoading = geminiLoading,
+                        onToggleGemini = { viewModel.toggleGemini() },
+                        onDeleteGeminiChat = { viewModel.deleteGeminiChat(it) },
                     )
 
                     is Screen.NotebookDetail -> NotebookDetailScreen(

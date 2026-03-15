@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jara.notebooklm.rpc.*
+import dev.jara.notebooklm.rpc.GeminiChatApi
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -99,6 +100,12 @@ fun NotebookListScreen(
     miniPlayerTitle: String? = null,
     onMiniPlayerClick: () -> Unit = {},
     onMiniPlayerStop: () -> Unit = {},
+    // Gemini chat
+    showGemini: Boolean = false,
+    geminiChats: List<GeminiChatApi.GeminiChat> = emptyList(),
+    geminiLoading: Boolean = false,
+    onToggleGemini: () -> Unit = {},
+    onDeleteGeminiChat: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -276,7 +283,47 @@ fun NotebookListScreen(
         }
 
         // ── Obsah ──
-        if (loading || searchLoading) {
+        if (showGemini) {
+            // Gemini chat list
+            if (geminiLoading) {
+                SkeletonList(modifier = Modifier.weight(1f))
+            } else if (geminiChats.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "\uD83E\uDD16", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Žádné Gemini chaty",
+                            color = Term.white,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSizeLg,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Tvoje konverzace z gemini.google.com",
+                            color = Term.textDim,
+                            fontFamily = Term.font,
+                            fontSize = Term.fontSize,
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 100.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    itemsIndexed(geminiChats) { _, chat ->
+                        GeminiChatCard(
+                            chat = chat,
+                            onDelete = { onDeleteGeminiChat(chat.id) },
+                        )
+                    }
+                }
+            }
+        } else if (loading || searchLoading) {
             SkeletonList(modifier = Modifier.weight(1f))
         } else if (notebooks.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -616,29 +663,40 @@ fun NotebookListScreen(
                         .padding(horizontal = 16.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val titleColor = if (showGemini) Term.cyan else Term.green
+                    val titleText = if (showGemini) "Gemini" else "NotebookLM"
+                    val itemCount = if (showGemini) geminiChats.size else notebooks.size
+
                     Text(
-                        text = "NotebookLM",
-                        color = Term.green,
+                        text = titleText,
+                        color = titleColor,
                         fontFamily = Term.font,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         style = androidx.compose.ui.text.TextStyle(
                             shadow = androidx.compose.ui.graphics.Shadow(
-                                color = Term.green.copy(alpha = 0.6f),
+                                color = titleColor.copy(alpha = 0.6f),
                                 blurRadius = 12f,
                             ),
                         ),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onToggleGemini()
+                            }
+                            .padding(4.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${notebooks.size}",
+                        text = "$itemCount",
                         color = Term.bg,
                         fontFamily = Term.font,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Term.green.copy(alpha = 0.6f))
+                            .background(titleColor.copy(alpha = 0.6f))
                             .padding(horizontal = 7.dp, vertical = 2.dp),
                     )
                     Spacer(modifier = Modifier.weight(1f))
